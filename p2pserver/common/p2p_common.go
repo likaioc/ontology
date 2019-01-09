@@ -53,12 +53,14 @@ const (
 	MAX_REQ_BLK_ONCE = 16               //req blk count once from one peer when sync blk
 	MAX_MSG_LEN      = 30 * 1024 * 1024 //the maximum message length
 	MAX_PAYLOAD_LEN  = MAX_MSG_LEN - MSG_HDR_LEN
+	MAX_CACHE_SIZE   = 65536 // Max hash cache
 )
 
 //msg type const
 const (
 	MAX_ADDR_NODE_CNT = 64 //the maximum peer address from msg
 	MAX_INV_BLK_CNT   = 64 //the maximum blk hash cnt of inv msg
+	MAX_HOP           = 16 //time to live for a packet by hop count
 )
 
 //info update const
@@ -115,8 +117,6 @@ type PeerAddr struct {
 const (
 	VERSION_TYPE     = "version"    //peer`s information
 	VERACK_TYPE      = "verack"     //ack msg after version recv
-	GetADDR_TYPE     = "getaddr"    //req nbr address from peer
-	ADDR_TYPE        = "addr"       //nbr address
 	PING_TYPE        = "ping"       //ping  sync height
 	PONG_TYPE        = "pong"       //pong  recv nbr height
 	GET_HEADERS_TYPE = "getheaders" //req blk hdr
@@ -129,6 +129,10 @@ const (
 	GET_BLOCKS_TYPE  = "getblocks"  //req blks from peer
 	NOT_FOUND_TYPE   = "notfound"   //peer can`t find blk according to the hash
 	DISCONNECT_TYPE  = "disconnect" //peer disconnect info raise by link
+	DHT_PING         = "dht_ping"
+	DHT_PONG         = "dht_pong"
+	DHT_FIND_NODE    = "find_node" // length cannot exceed common.MSG_CMD_LEN
+	DHT_NEIGHBORS    = "neighbors" // length cannot exceed common.MSG_CMD_LEN
 )
 
 type AppendPeerID struct {

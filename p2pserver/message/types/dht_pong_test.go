@@ -19,11 +19,32 @@
 package types
 
 import (
+	"github.com/ontio/ontology/p2pserver/common"
+	"github.com/stretchr/testify/assert"
+	"net"
 	"testing"
 )
 
-func TestAddrReqSerializationDeserialization(t *testing.T) {
-	var msg AddrReq
+func genTestDHTPong() *DHTPong {
+	seed := genTestNode()
+	addr := &net.UDPAddr{}
+	pong := new(DHTPong)
+	copy(pong.FromID[:], seed.ID[:])
 
-	MessageTest(t, &msg)
+	pong.SrcEndPoint.UDPPort = seed.UDPPort
+	pong.SrcEndPoint.TCPPort = seed.TCPPort
+
+	copy(pong.SrcEndPoint.Addr[:], seed.IP)
+
+	pong.DestEndPoint.UDPPort = uint16(addr.Port)
+
+	destIP := addr.IP.To16()
+	copy(pong.DestEndPoint.Addr[:], destIP)
+	return pong
+}
+
+func TestDHTPong_Serialization(t *testing.T) {
+	dhtPong := genTestDHTPong()
+	assert.Equal(t, common.DHT_PONG, dhtPong.CmdType())
+	MessageTest(t, dhtPong)
 }

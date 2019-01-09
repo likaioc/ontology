@@ -20,6 +20,7 @@ package types
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"io"
 
@@ -31,22 +32,38 @@ import (
 	"github.com/ontio/ontology/errors"
 )
 
+type Datatype uint8
+
 type ConsensusPayload struct {
 	Version         uint32
 	PrevHash        common.Uint256
 	Height          uint32
 	BookkeeperIndex uint16
 	Timestamp       uint32
+	PeerId          uint64
+	DestID          uint64
 	Data            []byte
 	Owner           keypair.PublicKey
 	Signature       []byte
-	PeerId          uint64
-	hash            common.Uint256
+	hash            *common.Uint256
 }
 
 //get the consensus payload hash
 func (this *ConsensusPayload) Hash() common.Uint256 {
-	return common.Uint256{}
+	if this.hash != nil {
+		return *this.hash
+	}
+
+	sink := common.NewZeroCopySink(nil)
+	this.serializationUnsigned(sink)
+	buf := keypair.SerializePublicKey(this.Owner)
+	sink.WriteVarBytes(buf)
+
+	temp := sha256.Sum256(sink.Bytes())
+	hash := common.Uint256(sha256.Sum256(temp[:]))
+
+	this.hash = &hash
+	return hash
 }
 
 //Check whether header is correct
@@ -182,6 +199,8 @@ func (this *ConsensusPayload) serializationUnsigned(sink *common.ZeroCopySink) {
 	sink.WriteUint32(this.Height)
 	sink.WriteUint16(this.BookkeeperIndex)
 	sink.WriteUint32(this.Timestamp)
+	sink.WriteUint64(this.PeerId)
+	sink.WriteUint64(this.DestID)
 	sink.WriteVarBytes(this.Data)
 }
 
@@ -212,6 +231,14 @@ func (this *ConsensusPayload) SerializeUnsigned(w io.Writer) error {
 
 		return errors.NewDetailErr(err, errors.ErrNetPackFail, fmt.Sprintf("write error. Timestamp:%v", this.Timestamp))
 	}
+	err = serialization.WriteUint64(w, this.PeerId)
+	if err != nil {
+		return errors.NewDetailErr(err, errors.ErrNetPackFail, fmt.Sprintf("write error. PeerId:%v", this.PeerId))
+	}
+	err = serialization.WriteUint64(w, this.DestID)
+	if err != nil {
+		return errors.NewDetailErr(err, errors.ErrNetPackFail, fmt.Sprintf("write error. DestID:%v", this.DestID))
+	}
 	err = serialization.WriteVarBytes(w, this.Data)
 	if err != nil {
 
@@ -227,6 +254,8 @@ func (this *ConsensusPayload) deserializationUnsigned(source *common.ZeroCopySou
 	this.Height, eof = source.NextUint32()
 	this.BookkeeperIndex, eof = source.NextUint16()
 	this.Timestamp, eof = source.NextUint32()
+	this.PeerId, eof = source.NextUint64()
+	this.DestID, eof = source.NextUint64()
 	this.Data, _, irregular, eof = source.NextVarBytes()
 	if eof {
 		return io.ErrUnexpectedEOF
@@ -273,11 +302,22 @@ func (this *ConsensusPayload) DeserializeUnsigned(r io.Reader) error {
 		return errors.NewDetailErr(err, errors.ErrNetUnPackFail, "read Timestamp error")
 	}
 
+	this.PeerId, err = serialization.ReadUint64(r)
+	if err != nil {
+
+		return errors.NewDetailErr(err, errors.ErrNetUnPackFail, "read PeerId error")
+	}
+
+	this.DestID, err = serialization.ReadUint64(r)
+	if err != nil {
+
+		return errors.NewDetailErr(err, errors.ErrNetUnPackFail, "read DestID error")
+	}
+
 	this.Data, err = serialization.ReadVarBytes(r)
 	if err != nil {
 
 		return errors.NewDetailErr(err, errors.ErrNetUnPackFail, "read Data error")
 	}
-
 	return nil
 }

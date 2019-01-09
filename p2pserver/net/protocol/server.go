@@ -20,7 +20,9 @@
 package p2p
 
 import (
+	oc "github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/p2pserver/common"
+	dt "github.com/ontio/ontology/p2pserver/dht/types"
 	"github.com/ontio/ontology/p2pserver/message/types"
 	"github.com/ontio/ontology/p2pserver/peer"
 )
@@ -34,6 +36,7 @@ type P2P interface {
 	GetVersion() uint32
 	GetSyncPort() uint16
 	GetConsPort() uint16
+	GetUDPPort() uint16
 	GetHttpInfoPort() uint16
 	GetRelay() bool
 	GetHeight() uint64
@@ -45,6 +48,7 @@ type P2P interface {
 	GetNp() *peer.NbrPeers
 	GetPeer(uint64) *peer.Peer
 	SetHeight(uint64)
+	SetFeedCh(chan *dt.FeedEvent)
 	IsPeerEstablished(p *peer.Peer) bool
 	Send(p *peer.Peer, msg types.Message, isConsensus bool) error
 	GetMsgChan(isConsensus bool) chan *types.MsgPayload
@@ -62,7 +66,7 @@ type P2P interface {
 	AddNbrNode(*peer.Peer)
 	DelNbrNode(id uint64) (*peer.Peer, bool)
 	NodeEstablished(uint64) bool
-	Xmit(msg types.Message, isCons bool)
+	Xmit(msg types.Message, hash oc.Uint256, isCons bool)
 	SetOwnAddress(addr string)
 	IsOwnAddress(addr string) bool
 	IsAddrFromConnecting(addr string) bool

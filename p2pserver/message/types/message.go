@@ -151,10 +151,6 @@ func MakeEmptyMessage(cmdType string) (Message, error) {
 		return &Version{}, nil
 	case common.VERACK_TYPE:
 		return &VerACK{}, nil
-	case common.ADDR_TYPE:
-		return &Addr{}, nil
-	case common.GetADDR_TYPE:
-		return &AddrReq{}, nil
 	case common.PONG_TYPE:
 		return &Pong{}, nil
 	case common.GET_HEADERS_TYPE:
@@ -177,6 +173,14 @@ func MakeEmptyMessage(cmdType string) (Message, error) {
 		return &Disconnected{}, nil
 	case common.GET_BLOCKS_TYPE:
 		return &BlocksReq{}, nil
+	case common.DHT_PING:
+		return &DHTPing{}, nil
+	case common.DHT_PONG:
+		return &DHTPong{}, nil
+	case common.DHT_FIND_NODE:
+		return &FindNode{}, nil
+	case common.DHT_NEIGHBORS:
+		return &Neighbors{}, nil
 	default:
 		return nil, errors.New("unsupported cmd type:" + cmdType)
 	}

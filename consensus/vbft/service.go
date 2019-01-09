@@ -108,6 +108,7 @@ type Server struct {
 	completedBlockNum        uint32 // ledger SaveBlockCompleted block num
 	currentBlockNum          uint32
 	LastConfigBlockNum       uint32
+	NodeID                   uint64
 	config                   *vconfig.ChainConfig
 	currentParticipantConfig *BlockParticipantConfig
 
@@ -129,9 +130,10 @@ type Server struct {
 	quitWg     sync.WaitGroup
 }
 
-func NewVbftServer(account *account.Account, txpool, p2p *actor.PID) (*Server, error) {
+func NewVbftServer(account *account.Account, txpool, p2p *actor.PID, nodeID uint64) (*Server, error) {
 	server := &Server{
 		msgHistoryDuration: 64,
+		NodeID:             nodeID,
 		account:            account,
 		poolActor:          &actorTypes.TxPoolActor{Pool: txpool},
 		p2p:                &actorTypes.P2PActor{P2P: p2p},
@@ -239,7 +241,6 @@ func (self *Server) NewConsensusPayload(payload *p2pmsg.ConsensusPayload) {
 	if !present || p2pid != payload.PeerId {
 		self.peerPool.addP2pId(peerIdx, payload.PeerId)
 	}
-
 	if C, present := self.msgRecvC[peerIdx]; present {
 		C <- &p2pMsgPayload{
 			fromPeer: peerIdx,
@@ -449,7 +450,6 @@ func (self *Server) initialize() error {
 		}
 		log.Infof("added peer: %s", p.ID)
 	}
-
 	//index equal math.MaxUint32  is noconsensus node
 	id := vconfig.PubkeyID(self.account.PublicKey)
 	index, present := self.peerPool.GetPeerIndex(id)
@@ -1767,8 +1767,16 @@ func (self *Server) processTimerEvent(evt *TimerEvent) error {
 		}
 
 	case EventPeerHeartbeat:
-		self.heartbeat()
-
+		msg, err := self.constructHeartbeatMsg()
+		if err != nil {
+			log.Errorf("failed to build heartbeat msg: %s", err)
+			return err
+		}
+		for _, p := range self.config.Peers {
+			if p.Index != self.Index {
+				self.heartbeatToPeer(p.Index, msg)
+			}
+		}
 	case EventTxPool:
 		self.timer.stopTxTicker(evt.blockNum)
 		if self.completedBlockNum+1 == evt.blockNum {
@@ -2037,14 +2045,16 @@ func (self *Server) msgSendLoop() {
 				log.Errorf("server %d failed to serialized msg (type: %d): %s", self.Index, evt.Msg.Type(), err)
 				continue
 			}
+			msgType := evt.Msg.Type()
+
 			if evt.ToPeer == math.MaxUint32 {
 				// broadcast
-				if err := self.broadcastToAll(payload); err != nil {
+				if err := self.broadcastToAll(payload, msgType); err != nil {
 					log.Errorf("server %d xmit msg (type %d): %s",
 						self.Index, evt.Msg.Type(), err)
 				}
 			} else {
-				if err := self.sendToPeer(evt.ToPeer, payload); err != nil {
+				if err := self.sendToPeer(evt.ToPeer, payload, msgType); err != nil {
 					log.Errorf("server %d xmit to peer %d failed: %s", self.Index, evt.ToPeer, err)
 				}
 			}

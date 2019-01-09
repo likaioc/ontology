@@ -19,17 +19,20 @@
 package netserver
 
 import (
+	"encoding/binary"
 	"errors"
-	"math/rand"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	oc "github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/common/config"
 	"github.com/ontio/ontology/common/log"
 	"github.com/ontio/ontology/core/ledger"
 	"github.com/ontio/ontology/p2pserver/common"
+	dt "github.com/ontio/ontology/p2pserver/dht/types"
 	"github.com/ontio/ontology/p2pserver/message/msg_pack"
 	"github.com/ontio/ontology/p2pserver/message/types"
 	"github.com/ontio/ontology/p2pserver/net/protocol"
@@ -37,7 +40,7 @@ import (
 )
 
 //NewNetServer return the net object in p2p
-func NewNetServer() p2p.P2P {
+func NewNetServer(id uint64) p2p.P2P {
 	n := &NetServer{
 		SyncChan: make(chan *types.MsgPayload, common.CHAN_CAPABILITY),
 		ConsChan: make(chan *types.MsgPayload, common.CHAN_CAPABILITY),
@@ -46,7 +49,8 @@ func NewNetServer() p2p.P2P {
 	n.PeerAddrMap.PeerSyncAddress = make(map[string]*peer.Peer)
 	n.PeerAddrMap.PeerConsAddress = make(map[string]*peer.Peer)
 
-	n.init()
+	n.stopLoop = make(chan struct{}, 1)
+	n.init(id)
 	return n
 }
 
@@ -57,6 +61,8 @@ type NetServer struct {
 	conslistener net.Listener
 	SyncChan     chan *types.MsgPayload
 	ConsChan     chan *types.MsgPayload
+	feedCh       chan *dt.FeedEvent
+	stopLoop     chan struct{}
 	ConnectingNodes
 	PeerAddrMap
 	Np            *peer.NbrPeers
@@ -92,7 +98,7 @@ type PeerAddrMap struct {
 }
 
 //init initializes attribute of network server
-func (this *NetServer) init() error {
+func (this *NetServer) init(id uint64) error {
 	this.base.SetVersion(common.PROTOCOL_VERSION)
 
 	if config.DefConfig.Consensus.EnableConsensus {
@@ -119,10 +125,11 @@ func (this *NetServer) init() error {
 		this.base.SetConsPort(0)
 	}
 
+	this.base.SetUDPPort(config.DefConfig.P2PNode.NetworkMgrCfg.DHT.UDPPort)
 	this.base.SetRelay(true)
 
-	rand.Seed(time.Now().UnixNano())
-	id := rand.Uint64()
+	/*rand.Seed(time.Now().UnixNano())
+	id := rand.Uint64()*/
 
 	this.base.SetID(id)
 
@@ -136,6 +143,70 @@ func (this *NetServer) init() error {
 //InitListen start listening on the config port
 func (this *NetServer) Start() {
 	this.startListening()
+	go this.loop()
+}
+
+func (this *NetServer) loop() {
+	for {
+		select {
+		case event, ok := <-this.feedCh:
+			if ok {
+				log.Debugf("EvtType %d, content %v", event.EvtType, event.Event)
+				this.handleFeed(event)
+			}
+		case <-this.stopLoop:
+			return
+		}
+	}
+}
+
+func (this *NetServer) handleFeed(event *dt.FeedEvent) {
+	switch event.EvtType {
+	case dt.Add:
+		node := event.Event.(*dt.Node)
+		address := node.IP + ":" + strconv.Itoa(int(node.TCPPort))
+		id := binary.LittleEndian.Uint64(node.ID.Bytes())
+		if this.GetID() == id {
+			return
+		}
+		if this.NodeEstablished(id) {
+			return
+		}
+		if this.GetPeerFromAddr(address) != nil {
+			return
+		}
+		if this.IsAddrFromConnecting(address) {
+			return
+		}
+		this.Connect(address, false)
+	case dt.Del:
+		node := event.Event.(*dt.Node)
+		address := node.IP + ":" + strconv.Itoa(int(node.TCPPort))
+		this.disconnectPeer(address)
+	default:
+		log.Infof("handle feed: unknown feed event %d", event.EvtType)
+	}
+}
+
+func (this *NetServer) disconnectPeer(address string) {
+	this.RemoveFromInConnRecord(address)
+	this.RemoveFromOutConnRecord(address)
+
+	peer := this.GetPeerFromAddr(address)
+	if peer == nil {
+		return
+	}
+
+	this.RemoveFromConnectingList(address)
+	this.RemovePeerSyncAddress(address)
+	this.RemovePeerConsAddress(address)
+	peer.CloseSync()
+	peer.CloseCons()
+	log.Infof("disconnect peer %s", address)
+}
+
+func (this *NetServer) SetFeedCh(ch chan *dt.FeedEvent) {
+	this.feedCh = ch
 }
 
 //GetVersion return self peer`s version
@@ -177,6 +248,10 @@ func (this *NetServer) GetSyncPort() uint16 {
 //GetConsPort return the cons port
 func (this *NetServer) GetConsPort() uint16 {
 	return this.base.GetConsPort()
+}
+
+func (this *NetServer) GetUDPPort() uint16 {
+	return this.base.GetUDPPort()
 }
 
 //GetHttpInfoPort return the port support info via http
@@ -230,8 +305,8 @@ func (this *NetServer) NodeEstablished(id uint64) bool {
 }
 
 //Xmit called by actor, broadcast msg
-func (this *NetServer) Xmit(msg types.Message, isCons bool) {
-	this.Np.Broadcast(msg, isCons)
+func (this *NetServer) Xmit(msg types.Message, hash oc.Uint256, isCons bool) {
+	this.Np.Broadcast(msg, hash, isCons)
 }
 
 //GetMsgChan return sync or consensus channel when msgrouter need msg input
@@ -345,7 +420,7 @@ func (this *NetServer) Connect(addr string, isConsensus bool) error {
 		if !isConsensus {
 			this.RemoveFromOutConnRecord(addr)
 		}
-		log.Warn(err)
+		log.Warn("[p2p]connect to %s, is consensus %s, send version msg err: %s", addr, isConsensus, err)
 		return err
 	}
 	return nil

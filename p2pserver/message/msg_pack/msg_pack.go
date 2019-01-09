@@ -26,25 +26,11 @@ import (
 	"github.com/ontio/ontology/common/log"
 	ct "github.com/ontio/ontology/core/types"
 	msgCommon "github.com/ontio/ontology/p2pserver/common"
+	"github.com/ontio/ontology/p2pserver/dht/types"
 	mt "github.com/ontio/ontology/p2pserver/message/types"
 	p2pnet "github.com/ontio/ontology/p2pserver/net/protocol"
+	"net"
 )
-
-//Peer address package
-func NewAddrs(nodeAddrs []msgCommon.PeerAddr) mt.Message {
-	log.Trace()
-	var addr mt.Addr
-	addr.NodeAddrs = nodeAddrs
-
-	return &addr
-}
-
-//Peer address request package
-func NewAddrReq() mt.Message {
-	log.Trace()
-	var msg mt.AddrReq
-	return &msg
-}
 
 ///block package
 func NewBlock(bk *ct.Block) mt.Message {
@@ -75,10 +61,11 @@ func NewHeadersReq(curHdrHash common.Uint256) mt.Message {
 }
 
 ////Consensus info package
-func NewConsensus(cp *mt.ConsensusPayload) mt.Message {
+func NewConsensus(cp *mt.ConsensusPayload) *mt.Consensus {
 	log.Trace()
 	var cons mt.Consensus
 	cons.Cons = *cp
+	cons.Hop = msgCommon.MAX_HOP
 
 	return &cons
 }
@@ -98,6 +85,7 @@ func NewInv(invPayload *mt.InvPayload) mt.Message {
 	var inv mt.Inv
 	inv.P.Blk = invPayload.Blk
 	inv.P.InvType = invPayload.InvType
+	inv.Hop = msgCommon.MAX_HOP
 
 	return &inv
 }
@@ -134,6 +122,7 @@ func NewTxn(txn *ct.Transaction) mt.Message {
 	log.Trace()
 	var trn mt.Trn
 	trn.Txn = txn
+	trn.Hop = msgCommon.MAX_HOP
 
 	return &trn
 }
@@ -156,13 +145,13 @@ func NewVersion(n p2pnet.P2P, isCons bool, height uint32) mt.Message {
 		Services:     n.GetServices(),
 		SyncPort:     n.GetSyncPort(),
 		ConsPort:     n.GetConsPort(),
+		UDPPort:      n.GetUDPPort(),
 		Nonce:        n.GetID(),
 		IsConsensus:  isCons,
 		HttpInfoPort: n.GetHttpInfoPort(),
 		StartHeight:  uint64(height),
 		TimeStamp:    time.Now().UnixNano(),
 	}
-
 	if n.GetRelay() {
 		version.P.Relay = 1
 	} else {
@@ -204,4 +193,84 @@ func NewConsensusDataReq(hash common.Uint256) mt.Message {
 	dataReq.Hash = hash
 
 	return &dataReq
+}
+
+//DHT ping message packet
+func NewDHTPing(nodeID types.NodeID, udpPort, tcpPort uint16, srcAddr string,
+	destAddr *net.UDPAddr, version uint16) mt.Message {
+	ping := new(mt.DHTPing)
+	ping.Version = version
+	copy(ping.FromID[:], nodeID[:])
+
+	ping.SrcEndPoint.UDPPort = udpPort
+	ping.SrcEndPoint.TCPPort = tcpPort
+
+	srcIP := net.ParseIP(srcAddr).To16()
+	if srcIP == nil {
+		log.Errorf("NewDHTPing: Parse IP address %s error", srcAddr)
+		return nil
+	}
+	copy(ping.SrcEndPoint.Addr[:], srcIP[:])
+
+	ping.DestEndPoint.UDPPort = uint16(destAddr.Port)
+	destIP := destAddr.IP.To16()
+	if destIP == nil {
+		log.Errorf("NewDHTPing: failed to convert dest ip %v to 16-byte representation",
+			destAddr.IP)
+		return nil
+	}
+	copy(ping.DestEndPoint.Addr[:], destIP[:])
+
+	return ping
+}
+
+//DHT pong message packet
+func NewDHTPong(nodeID types.NodeID, udpPort, tcpPort uint16, srcAddr string,
+	destAddr *net.UDPAddr, version uint16) mt.Message {
+	pong := new(mt.DHTPong)
+	pong.Version = version
+	copy(pong.FromID[:], nodeID[:])
+	pong.SrcEndPoint.UDPPort = udpPort
+	pong.SrcEndPoint.TCPPort = tcpPort
+
+	srcIP := net.ParseIP(srcAddr).To16()
+	if srcIP == nil {
+		log.Errorf("NewDHTPong: Parse IP address %s error", srcAddr)
+		return nil
+	}
+	copy(pong.SrcEndPoint.Addr[:], srcIP[:])
+
+	pong.DestEndPoint.UDPPort = uint16(destAddr.Port)
+	destIP := destAddr.IP.To16()
+	if destIP == nil {
+		log.Info("NewDHTPong: failed to convert dest ip %v to 16-byte representation",
+			destAddr.IP)
+		return nil
+	}
+	copy(pong.DestEndPoint.Addr[:], destIP[:])
+
+	return pong
+}
+
+//DHT findNode message packet
+func NewFindNode(nodeID types.NodeID, targetID types.NodeID) mt.Message {
+	findNode := &mt.FindNode{
+		FromID:   nodeID,
+		TargetID: targetID,
+	}
+
+	return findNode
+}
+
+//DHT neighbors message packet
+func NewNeighbors(nodeID types.NodeID, cl types.ClosestList) mt.Message {
+	neighbors := &mt.Neighbors{
+		FromID: nodeID,
+		Nodes:  make([]types.Node, 0, cl.Len()),
+	}
+	for _, item := range cl {
+		neighbors.Nodes = append(neighbors.Nodes, *item.Entry)
+	}
+
+	return neighbors
 }

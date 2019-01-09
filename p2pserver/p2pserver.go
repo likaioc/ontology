@@ -38,6 +38,8 @@ import (
 	"github.com/ontio/ontology/core/ledger"
 	"github.com/ontio/ontology/core/types"
 	"github.com/ontio/ontology/p2pserver/common"
+	"github.com/ontio/ontology/p2pserver/dht"
+	dt "github.com/ontio/ontology/p2pserver/dht/types"
 	"github.com/ontio/ontology/p2pserver/message/msg_pack"
 	msgtypes "github.com/ontio/ontology/p2pserver/message/types"
 	"github.com/ontio/ontology/p2pserver/message/utils"
@@ -54,10 +56,11 @@ type P2PServer struct {
 	blockSync *BlockSyncMgr
 	ledger    *ledger.Ledger
 	ReconnectAddrs
-	recentPeers    map[uint32][]string
+	recentPeers    []dt.Node
 	quitSyncRecent chan bool
 	quitOnline     chan bool
 	quitHeartBeat  chan bool
+	dht            *dht.DHT
 }
 
 //ReconnectAddrs contain addr need to reconnect
@@ -68,16 +71,25 @@ type ReconnectAddrs struct {
 
 //NewServer return a new p2pserver according to the pubkey
 func NewServer() *P2PServer {
-	n := netserver.NewNetServer()
+	id := dt.ConstructID(config.DefConfig.P2PNode.NetworkMgrCfg.DHT.IP,
+		config.DefConfig.P2PNode.NetworkMgrCfg.DHT.UDPPort)
+	n := netserver.NewNetServer(id)
 
 	p := &P2PServer{
 		network: n,
 		ledger:  ledger.DefLedger,
 	}
 
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, id)
+	var nodeID dt.NodeID
+	copy(nodeID[:], b[:])
+	p.dht = dht.NewDHT(nodeID)
+	p.network.SetFeedCh(p.dht.GetFeedCh())
+
 	p.msgRouter = utils.NewMsgRouter(p.network)
 	p.blockSync = NewBlockSyncMgr(p)
-	p.recentPeers = make(map[uint32][]string)
+	p.recentPeers = make([]dt.Node, 0, common.RECENT_LIMIT)
 	p.quitSyncRecent = make(chan bool)
 	p.quitOnline = make(chan bool)
 	p.quitHeartBeat = make(chan bool)
@@ -102,11 +114,12 @@ func (this *P2PServer) Start() error {
 		return errors.New("[p2p]msg router invalid")
 	}
 	this.tryRecentPeers()
-	go this.connectSeedService()
+	this.dht.SetFallbackNodes(this.recentPeers)
 	go this.syncUpRecentPeers()
 	go this.keepOnlineService()
 	go this.heartBeatService()
 	go this.blockSync.Start()
+	go this.dht.Start()
 	return nil
 }
 
@@ -118,6 +131,7 @@ func (this *P2PServer) Stop() {
 	this.quitHeartBeat <- true
 	this.msgRouter.Stop()
 	this.blockSync.Close()
+	this.dht.Stop()
 }
 
 // GetNetWork returns the low level netserver
@@ -138,6 +152,10 @@ func (this *P2PServer) GetVersion() uint32 {
 //GetNeighborAddrs return all nbr`s address
 func (this *P2PServer) GetNeighborAddrs() []common.PeerAddr {
 	return this.network.GetNeighborAddrs()
+}
+
+func (this *P2PServer) GetDHT() *dht.DHT {
+	return this.dht
 }
 
 //Xmit called by other module to broadcast msg
@@ -468,7 +486,6 @@ func (this *P2PServer) connectSeedService() {
 		}
 	}
 }
-
 //keepOnline try connect lost peer
 func (this *P2PServer) keepOnlineService() {
 	t := time.NewTimer(time.Second * common.CONN_MONITOR)
@@ -586,6 +603,10 @@ func (this *P2PServer) tryRecentPeers() {
 		}
 		if len(this.recentPeers[netID]) > 0 {
 			log.Info("[p2p]try to connect recent peer")
+		log.Info("[p2p]try to connect recent peer")
+		for _, node := range this.recentPeers {
+			addr := node.IP + ":" + strconv.Itoa(int(node.TCPPort))
+			go this.network.Connect(addr, false)
 		}
 		for _, v := range this.recentPeers[netID] {
 			go this.network.Connect(v, false)
@@ -607,7 +628,6 @@ func (this *P2PServer) syncUpRecentPeers() {
 			break
 		}
 	}
-
 }
 
 //syncPeerAddr compare snapshot of recent peer with current link,then persist the list
@@ -616,31 +636,49 @@ func (this *P2PServer) syncPeerAddr() {
 	netID := config.DefConfig.P2PNode.NetworkMagic
 	for i := 0; i < len(this.recentPeers[netID]); i++ {
 		p := this.network.GetPeerFromAddr(this.recentPeers[netID][i])
+	for i := 0; i < len(this.recentPeers); i++ {
+		addr := this.recentPeers[i].IP + ":" + strconv.Itoa(int(this.recentPeers[i].TCPPort))
+		p := this.network.GetPeerFromAddr(addr)
 		if p == nil || (p != nil && p.GetSyncState() != common.ESTABLISH) {
-			this.recentPeers[netID] = append(this.recentPeers[netID][:i], this.recentPeers[netID][i+1:]...)
+			this.recentPeers = append(this.recentPeers[:i], this.recentPeers[i+1:]...)
 			changed = true
 			i--
 		}
 	}
-	left := common.RECENT_LIMIT - len(this.recentPeers[netID])
+	left := common.RECENT_LIMIT - len(this.recentPeers)
 	if left > 0 {
 		np := this.network.GetNp()
 		np.Lock()
-		var ip net.IP
+		found := false
 		for _, p := range np.List {
-			addr, _ := p.GetAddr16()
-			ip = addr[:]
-			nodeAddr := ip.To16().String() + ":" +
-				strconv.Itoa(int(p.GetSyncPort()))
-			found := false
-			for i := 0; i < len(this.recentPeers[netID]); i++ {
-				if nodeAddr == this.recentPeers[netID][i] {
+			addrIp, err := common.ParseIPAddr(p.GetAddr())
+			if err != nil {
+				log.Info(err)
+				continue
+			}
+			port := p.GetSyncPort()
+			found = false
+			for i := 0; i < len(this.recentPeers); i++ {
+				if this.recentPeers[i].IP == addrIp &&
+					this.recentPeers[i].TCPPort == port {
 					found = true
 					break
 				}
 			}
+
 			if !found {
-				this.recentPeers[netID] = append(this.recentPeers[netID], nodeAddr)
+				node := dt.Node{
+					IP:      addrIp,
+					UDPPort: p.GetUDPPort(),
+					TCPPort: port,
+				}
+
+				id := dt.ConstructID(addrIp, p.GetUDPPort())
+				b := make([]byte, 8)
+				binary.LittleEndian.PutUint64(b, id)
+				copy(node.ID[:], b[:])
+
+				this.recentPeers = append(this.recentPeers, node)
 				left--
 				changed = true
 				if left == 0 {
@@ -649,13 +687,10 @@ func (this *P2PServer) syncPeerAddr() {
 			}
 		}
 		np.Unlock()
-	} else {
-		if left < 0 {
-			left = -left
-			this.recentPeers[netID] = append(this.recentPeers[netID][:0], this.recentPeers[netID][0+left:]...)
-			changed = true
-		}
-
+	} else if left < 0 {
+		left = -left
+		this.recentPeers = append(this.recentPeers[:0], this.recentPeers[0+left:]...)
+		changed = true
 	}
 	if changed {
 		buf, err := json.Marshal(this.recentPeers)

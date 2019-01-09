@@ -19,22 +19,23 @@
 package types
 
 import (
-	"github.com/ontio/ontology/common"
-	comm "github.com/ontio/ontology/p2pserver/common"
+	"github.com/ontio/ontology/p2pserver/common"
+	"github.com/ontio/ontology/p2pserver/dht/types"
+	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
-type AddrReq struct{}
-
-//Serialize message payload
-func (this AddrReq) Serialization(sink *common.ZeroCopySink) error {
-	return nil
+func genTestNeighbors() *Neighbors {
+	neighbors := new(Neighbors)
+	node := genTestNode()
+	neighbors.FromID = node.ID
+	neighbors.Nodes = make([]types.Node, 0)
+	neighbors.Nodes = append(neighbors.Nodes, *node)
+	return neighbors
 }
 
-func (this *AddrReq) CmdType() string {
-	return comm.GetADDR_TYPE
-}
-
-//Deserialize message payload
-func (this *AddrReq) Deserialization(source *common.ZeroCopySource) error {
-	return nil
+func TestNeighbors(t *testing.T) {
+	neighbors := genTestNeighbors()
+	assert.Equal(t, common.DHT_NEIGHBORS, neighbors.CmdType())
+	MessageTest(t, neighbors)
 }

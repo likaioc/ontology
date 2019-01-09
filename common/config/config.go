@@ -53,6 +53,7 @@ const (
 	DEFAULT_MAX_LOG_SIZE                    = 100 //MByte
 	DEFAULT_NODE_PORT                       = uint(20338)
 	DEFAULT_CONSENSUS_PORT                  = uint(20339)
+	DEAFAULT_DHT_UTP_PORT                   = uint(20390)
 	DEFAULT_RPC_PORT                        = uint(20336)
 	DEFAULT_RPC_LOCAL_PORT                  = uint(20337)
 	DEFAULT_REST_PORT                       = uint(20334)
@@ -70,8 +71,9 @@ const (
 	DEFAULT_GAS_LIMIT                       = 20000
 	DEFAULT_GAS_PRICE                       = 500
 
-	DEFAULT_DATA_DIR      = "./Chain"
-	DEFAULT_RESERVED_FILE = "./peers.rsv"
+	DEFAULT_DATA_DIR         = "./Chain"
+	DEFAULT_RESERVED_FILE    = "./peers.rsv"
+	DEFAULT_NETWORK_MGR_FILE = "./networkmgr.json"
 )
 
 const (
@@ -470,6 +472,22 @@ type SOLOConfig struct {
 	Bookkeepers  []string
 }
 
+type NetworkMgrCfg struct {
+	DHT DHTConfig `json:"DHT"`
+}
+
+type DHTConfig struct {
+	UDPPort uint16    `json:"UDPPort"`
+	IP      string    `json:"IP"`
+	Seeds   []DHTNode `json:"Seeds"`
+}
+
+type DHTNode struct {
+	IP      string `json:"IP"`
+	UDPPort uint16 `json:"UDPPort"`
+	TCPPort uint16 `json:"TCPPort"`
+}
+
 type CommonConfig struct {
 	LogLevel       uint
 	NodeType       string
@@ -493,6 +511,7 @@ type P2PRsvConfig struct {
 type P2PNodeConfig struct {
 	ReservedPeersOnly         bool
 	ReservedCfg               *P2PRsvConfig
+	NetworkMgrCfg             *NetworkMgrCfg
 	NetworkMagic              uint32
 	NetworkId                 uint32
 	NetworkName               string
@@ -557,6 +576,7 @@ func NewOntologyConfig() *OntologyConfig {
 		P2PNode: &P2PNodeConfig{
 			ReservedCfg:               &P2PRsvConfig{},
 			ReservedPeersOnly:         false,
+			NetworkMgrCfg:             &NetworkMgrCfg{},
 			NetworkId:                 NETWORK_ID_MAIN_NET,
 			NetworkName:               GetNetworkName(NETWORK_ID_MAIN_NET),
 			NetworkMagic:              GetNetworkMagic(NETWORK_ID_MAIN_NET),

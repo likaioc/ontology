@@ -26,6 +26,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fatih/set"
+	comm "github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/common/log"
 	"github.com/ontio/ontology/p2pserver/common"
 	conn "github.com/ontio/ontology/p2pserver/link"
@@ -41,6 +43,7 @@ type PeerCom struct {
 	httpInfoPort uint16
 	syncPort     uint16
 	consPort     uint16
+	udpPort      uint16
 	height       uint64
 }
 
@@ -124,6 +127,16 @@ func (this *PeerCom) GetHeight() uint64 {
 	return this.height
 }
 
+// SetUDPPort sets a peer's udp port
+func (this *PeerCom) SetUDPPort(port uint16) {
+	this.udpPort = port
+}
+
+// GetUDPPort returns a peer's udp port
+func (this *PeerCom) GetUDPPort() uint16 {
+	return this.udpPort
+}
+
 //Peer represent the node in p2p
 type Peer struct {
 	base      PeerCom
@@ -134,6 +147,7 @@ type Peer struct {
 	consState uint32
 	txnCnt    uint64
 	rxTxnCnt  uint64
+	knownHash set.Interface
 	connLock  sync.RWMutex
 }
 
@@ -142,6 +156,7 @@ func NewPeer() *Peer {
 	p := &Peer{
 		syncState: common.INIT,
 		consState: common.INIT,
+		knownHash: set.New(set.ThreadSafe),
 	}
 	p.SyncLink = conn.NewLink()
 	p.ConsLink = conn.NewLink()
@@ -228,6 +243,11 @@ func (this *Peer) GetConsPort() uint16 {
 //SetConsPort set peer`s consensus port
 func (this *Peer) SetConsPort(port uint16) {
 	this.ConsLink.SetPort(port)
+}
+
+//GetUDPPort returns peer's udp port
+func (this *Peer) GetUDPPort() uint16 {
+	return this.base.GetUDPPort()
 }
 
 //SendToSync call sync link to send buffer
@@ -358,9 +378,24 @@ func (this *Peer) SetHttpInfoPort(port uint16) {
 	this.base.SetHttpInfoPort(port)
 }
 
+//MarkHashAsSeen cache a hash. When set is full, drop
+// a previously known hash
+func (this *Peer) MarkHashAsSeen(hash comm.Uint256) {
+	if this.knownHash.Size() >= common.MAX_CACHE_SIZE {
+		this.knownHash.Pop()
+	}
+	this.knownHash.Add(hash)
+}
+
+//IsHashContained check whether a given hash known by a peer
+func (this *Peer) IsHashContained(hash comm.Uint256) bool {
+	return this.knownHash.Has(hash)
+}
+
 //UpdateInfo update peer`s information
-func (this *Peer) UpdateInfo(t time.Time, version uint32, services uint64,
-	syncPort uint16, consPort uint16, nonce uint64, relay uint8, height uint64) {
+func (this *Peer) UpdateInfo(t time.Time, version uint32,
+	services uint64, syncPort uint16, consPort uint16,
+	udpPort uint16, nonce uint64, relay uint8, height uint64) {
 
 	this.SyncLink.UpdateRXTime(t)
 	this.base.SetID(nonce)
@@ -368,6 +403,7 @@ func (this *Peer) UpdateInfo(t time.Time, version uint32, services uint64,
 	this.base.SetServices(services)
 	this.base.SetSyncPort(syncPort)
 	this.base.SetConsPort(consPort)
+	this.base.SetUDPPort(udpPort)
 	this.SyncLink.SetPort(syncPort)
 	this.ConsLink.SetPort(consPort)
 	if relay == 0 {

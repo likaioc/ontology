@@ -19,12 +19,14 @@
 package server
 
 import (
+	"encoding/binary"
 	"reflect"
 
 	"github.com/ontio/ontology-eventbus/actor"
 	"github.com/ontio/ontology/common/log"
 	"github.com/ontio/ontology/p2pserver"
 	"github.com/ontio/ontology/p2pserver/common"
+	"github.com/ontio/ontology/p2pserver/message/types"
 )
 
 type P2PActor struct {
@@ -84,7 +86,7 @@ func (this *P2PActor) Receive(ctx actor.Context) {
 		this.handleGetRelayStateReq(ctx, msg)
 	case *GetNodeTypeReq:
 		this.handleGetNodeTypeReq(ctx, msg)
-	case *TransmitConsensusMsgReq:
+	case *types.TransmitConsensusMsgReq:
 		this.handleTransmitConsensusMsgReq(ctx, msg)
 	case *common.AppendPeerID:
 		this.server.OnAddNode(msg.ID)
@@ -235,11 +237,35 @@ func (this *P2PActor) handleGetNodeTypeReq(ctx actor.Context, req *GetNodeTypeRe
 	}
 }
 
-func (this *P2PActor) handleTransmitConsensusMsgReq(ctx actor.Context, req *TransmitConsensusMsgReq) {
+func (this *P2PActor) handleTransmitConsensusMsgReq(ctx actor.Context,
+	req *types.TransmitConsensusMsgReq) {
 	peer := this.server.GetNetWork().GetPeer(req.Target)
-	if peer != nil {
-		this.server.Send(peer, req.Msg, true)
+	if peer != nil && this.server.GetNetWork().IsPeerEstablished(peer) {
+		err := this.server.Send(peer, req.Msg, true)
+		if err != nil {
+			log.Warnf("[p2p]can`t transmit consensus msg to %s, send msg err: %s", peer.GetAddr(), err)
+		}
 	} else {
-		log.Warnf("[p2p]can`t transmit consensus msg:no valid neighbor peer: %d\n", req.Target)
+		dht := this.server.GetDHT()
+		if dht == nil {
+			log.Warnf("[p2p]can`t transmit consensus msg: no dht object")
+			return
+		}
+		closestList := dht.Resolve(req.Target)
+		if closestList.Len() == 0 {
+			log.Warnf("[p2p]can`t transmit consensus msg:no valid neighbor peer: %d\n", req.Target)
+			return
+		}
+		for _, item := range closestList {
+			id := binary.LittleEndian.Uint64(item.Entry.ID[:])
+			peer := this.server.GetNetWork().GetPeer(id)
+			if peer == nil || !this.server.GetNetWork().IsPeerEstablished(peer) {
+				continue
+			}
+			err := this.server.Send(peer, req.Msg, true)
+			if err != nil {
+				log.Warnf("[p2p]can`t transmit consensus msg to %s, send msg err: %s", peer.GetAddr(), err)
+			}
+		}
 	}
 }

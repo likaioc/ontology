@@ -21,45 +21,51 @@ package types
 import (
 	"io"
 
-	comm "github.com/ontio/ontology/common"
-	"github.com/ontio/ontology/core/types"
-	"github.com/ontio/ontology/p2pserver/common"
+	"github.com/ontio/ontology/common"
+	pCom "github.com/ontio/ontology/p2pserver/common"
+	"github.com/ontio/ontology/p2pserver/dht/types"
 )
 
-// Transaction message
-type Trn struct {
-	Txn *types.Transaction
-	Hop uint8
+type FindNode struct {
+	FromID   types.NodeID
+	TargetID types.NodeID
+}
+
+func (this *FindNode) CmdType() string {
+	return pCom.DHT_FIND_NODE
 }
 
 //Serialize message payload
-func (this Trn) Serialization(sink *comm.ZeroCopySink) error {
-	err := this.Txn.Serialization(sink)
-	if err != nil {
-		return err
-	}
-	sink.WriteUint8(this.Hop)
+func (this FindNode) Serialization(sink *common.ZeroCopySink) error {
+	sink.WriteVarBytes(this.FromID[:])
+	sink.WriteVarBytes(this.TargetID[:])
 	return nil
 }
 
-func (this *Trn) CmdType() string {
-	return common.TX_TYPE
-}
-
 //Deserialize message payload
-func (this *Trn) Deserialization(source *comm.ZeroCopySource) error {
-	tx := &types.Transaction{}
-	err := tx.Deserialization(source)
-	if err != nil {
-		return err
-	}
-
-	this.Txn = tx
-
-	var eof bool
-	this.Hop, eof = source.NextUint8()
+func (this *FindNode) Deserialization(source *common.ZeroCopySource) error {
+	var (
+		eof       bool
+		irregular bool
+		buf       []byte
+	)
+	buf, _, irregular, eof = source.NextVarBytes()
 	if eof {
 		return io.ErrUnexpectedEOF
 	}
+	if irregular {
+		return common.ErrIrregularData
+	}
+	copy(this.FromID[:], buf)
+
+	buf, _, irregular, eof = source.NextVarBytes()
+	if eof {
+		return io.ErrUnexpectedEOF
+	}
+	if irregular {
+		return common.ErrIrregularData
+	}
+	copy(this.TargetID[:], buf)
+
 	return nil
 }

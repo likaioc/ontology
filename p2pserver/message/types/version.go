@@ -32,6 +32,7 @@ type VersionPayload struct {
 	SyncPort     uint16
 	HttpInfoPort uint16
 	ConsPort     uint16
+	UDPPort      uint16
 	Cap          [32]byte
 	Nonce        uint64
 	StartHeight  uint64
@@ -51,6 +52,7 @@ func (this *Version) Serialization(sink *comm.ZeroCopySink) error {
 	sink.WriteUint16(this.P.SyncPort)
 	sink.WriteUint16(this.P.HttpInfoPort)
 	sink.WriteUint16(this.P.ConsPort)
+	sink.WriteUint16(this.P.UDPPort)
 	sink.WriteBytes(this.P.Cap[:])
 	sink.WriteUint64(this.P.Nonce)
 	sink.WriteUint64(this.P.StartHeight)
@@ -73,6 +75,7 @@ func (this *Version) Deserialization(source *comm.ZeroCopySource) error {
 	this.P.SyncPort, eof = source.NextUint16()
 	this.P.HttpInfoPort, eof = source.NextUint16()
 	this.P.ConsPort, eof = source.NextUint16()
+	this.P.UDPPort, eof = source.NextUint16()
 	var buf []byte
 	buf, eof = source.NextBytes(uint64(len(this.P.Cap[:])))
 	copy(this.P.Cap[:], buf)
