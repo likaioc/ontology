@@ -536,6 +536,7 @@ func (this *BlockSyncMgr) delNode(nodeId uint64) {
 	if len(this.nodeWeights) == 0 {
 		log.Warnf("no sync nodes")
 	}
+	log.Infof("OnDelNode:%d", nodeId)
 }
 
 func (this *BlockSyncMgr) tryGetSyncHeaderLock() bool {

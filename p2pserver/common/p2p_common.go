@@ -22,8 +22,6 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-
-	"github.com/ontio/ontology/core/types"
 )
 
 //peer capability
@@ -60,7 +58,6 @@ const (
 const (
 	MAX_ADDR_NODE_CNT = 64 //the maximum peer address from msg
 	MAX_INV_BLK_CNT   = 64 //the maximum blk hash cnt of inv msg
-	MAX_HOP           = 16 //time to live for a packet by hop count
 )
 
 //info update const
@@ -117,6 +114,8 @@ type PeerAddr struct {
 const (
 	VERSION_TYPE     = "version"    //peer`s information
 	VERACK_TYPE      = "verack"     //ack msg after version recv
+	GetADDR_TYPE     = "getaddr"    //req nbr address from peer
+	ADDR_TYPE        = "addr"       //nbr address
 	PING_TYPE        = "ping"       //ping  sync height
 	PONG_TYPE        = "pong"       //pong  recv nbr height
 	GET_HEADERS_TYPE = "getheaders" //req blk hdr
@@ -134,25 +133,6 @@ const (
 	DHT_FIND_NODE    = "find_node" // length cannot exceed common.MSG_CMD_LEN
 	DHT_NEIGHBORS    = "neighbors" // length cannot exceed common.MSG_CMD_LEN
 )
-
-type AppendPeerID struct {
-	ID uint64 // The peer id
-}
-
-type RemovePeerID struct {
-	ID uint64 // The peer id
-}
-
-type AppendHeaders struct {
-	FromID  uint64          // The peer id
-	Headers []*types.Header // Headers to be added to the ledger
-}
-
-type AppendBlock struct {
-	FromID    uint64       // The peer id
-	BlockSize uint32       // Block size
-	Block     *types.Block // Block to be added to the ledger
-}
 
 //ParseIPAddr return ip address
 func ParseIPAddr(s string) (string, error) {

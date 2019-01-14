@@ -49,7 +49,6 @@ type DHT struct {
 	version        uint16                       // Local DHT version
 	nodeID         types.NodeID                 // Local DHT id
 	routingTable   *routingTable                // The k buckets
-	addr           string                       // Local Address
 	udpPort        uint16                       // Local UDP port
 	tcpPort        uint16                       // Local TCP port
 	conn           *net.UDPConn                 // UDP listen fd
@@ -67,8 +66,7 @@ type DHT struct {
 func NewDHT(id types.NodeID) *DHT {
 	dht := &DHT{
 		nodeID:         id,
-		addr:           config.DefConfig.P2PNode.NetworkMgrCfg.DHT.IP,
-		udpPort:        uint16(config.DefConfig.P2PNode.NetworkMgrCfg.DHT.UDPPort),
+		udpPort:        config.DefConfig.P2PNode.DHTPort,
 		tcpPort:        uint16(config.DefConfig.P2PNode.NodePort),
 		routingTable:   &routingTable{},
 		bootstrapNodes: make(map[types.NodeID]*types.Node, 0),
@@ -78,28 +76,48 @@ func NewDHT(id types.NodeID) *DHT {
 	return dht
 }
 
+func loadSubSeeds(peerAddr string) *types.Node {
+	ip, err := common.ParseIPAddr(peerAddr)
+	if err != nil {
+		log.Warnf("[p2p]dht seed peer %s address format is wrong", peerAddr)
+		return nil
+	}
+	ns, err := net.LookupHost(ip)
+	if err != nil {
+		log.Warnf("[p2p]dht resolve err: %s", err.Error())
+		return nil
+	}
+	port, err := common.ParseIPPort(peerAddr)
+	if err != nil {
+		log.Warnf("[p2p]dht seed peer %s address format is wrong", peerAddr)
+		return nil
+	}
+
+	portNum, _ := strconv.ParseUint(port, 10, 64)
+
+	n := &types.Node{
+		IP:      ns[0],
+		UDPPort: config.DefConfig.P2PNode.DHTPort,
+		TCPPort: uint16(portNum),
+	}
+	id := types.ConstructID(n.IP, n.UDPPort)
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, id)
+	copy(n.ID[:], b[:])
+
+	return n
+}
+
 // loadSeeds load seed nodes as initial nodes to contact
 func loadSeeds() []*types.Node {
-	seeds := make([]*types.Node, 0, len(config.DefConfig.P2PNode.NetworkMgrCfg.DHT.Seeds))
-	for i := 0; i < len(config.DefConfig.P2PNode.NetworkMgrCfg.DHT.Seeds); i++ {
-		node := config.DefConfig.P2PNode.NetworkMgrCfg.DHT.Seeds[i]
-		ns, err := net.LookupHost(node.IP)
-		if err != nil {
-			log.Warnf("resolve ip %s err %s", node.IP, err.Error())
-			continue
+	seeds := make([]*types.Node, 0, len(config.DefConfig.Genesis.SeedList))
+	for _, n := range config.DefConfig.Genesis.SeedList {
+		seed := loadSubSeeds(n)
+		if seed != nil {
+			seeds = append(seeds, seed)
 		}
-
-		seed := &types.Node{
-			IP:      ns[0],
-			UDPPort: node.UDPPort,
-			TCPPort: node.TCPPort,
-		}
-		id := types.ConstructID(seed.IP, seed.UDPPort)
-		b := make([]byte, 8)
-		binary.LittleEndian.PutUint64(b, id)
-		copy(seed.ID[:], b[:])
-		seeds = append(seeds, seed)
 	}
+
 	return seeds
 }
 
@@ -149,9 +167,13 @@ func (this *DHT) Stop() {
 }
 
 //SetFallbackNodes appends recent connected peers
-func (this *DHT) SetFallbackNodes(nodes []types.Node) {
-	for _, n := range nodes {
-		this.bootstrapNodes[n.ID] = &n
+func (this *DHT) SetFallbackNodes(recentPeers map[uint32][]string) {
+	netID := config.DefConfig.P2PNode.NetworkMagic
+	for _, peer := range recentPeers[netID] {
+         n := loadSubSeeds(peer)
+         if n != nil {
+			 this.bootstrapNodes[n.ID] = n
+		 }
 	}
 }
 

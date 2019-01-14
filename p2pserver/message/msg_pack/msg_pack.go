@@ -32,6 +32,22 @@ import (
 	"net"
 )
 
+//Peer address package
+func NewAddrs(nodeAddrs []msgCommon.PeerAddr) mt.Message {
+	log.Trace()
+	var addr mt.Addr
+	addr.NodeAddrs = nodeAddrs
+
+	return &addr
+}
+
+//Peer address request package
+func NewAddrReq() mt.Message {
+	log.Trace()
+	var msg mt.AddrReq
+	return &msg
+}
+
 ///block package
 func NewBlock(bk *ct.Block) mt.Message {
 	log.Trace()
@@ -61,11 +77,10 @@ func NewHeadersReq(curHdrHash common.Uint256) mt.Message {
 }
 
 ////Consensus info package
-func NewConsensus(cp *mt.ConsensusPayload) *mt.Consensus {
+func NewConsensus(cp *mt.ConsensusPayload) mt.Message {
 	log.Trace()
 	var cons mt.Consensus
 	cons.Cons = *cp
-	cons.Hop = msgCommon.MAX_HOP
 
 	return &cons
 }
@@ -85,7 +100,6 @@ func NewInv(invPayload *mt.InvPayload) mt.Message {
 	var inv mt.Inv
 	inv.P.Blk = invPayload.Blk
 	inv.P.InvType = invPayload.InvType
-	inv.Hop = msgCommon.MAX_HOP
 
 	return &inv
 }
@@ -122,7 +136,6 @@ func NewTxn(txn *ct.Transaction) mt.Message {
 	log.Trace()
 	var trn mt.Trn
 	trn.Txn = txn
-	trn.Hop = msgCommon.MAX_HOP
 
 	return &trn
 }
@@ -145,13 +158,13 @@ func NewVersion(n p2pnet.P2P, isCons bool, height uint32) mt.Message {
 		Services:     n.GetServices(),
 		SyncPort:     n.GetSyncPort(),
 		ConsPort:     n.GetConsPort(),
-		UDPPort:      n.GetUDPPort(),
 		Nonce:        n.GetID(),
 		IsConsensus:  isCons,
 		HttpInfoPort: n.GetHttpInfoPort(),
 		StartHeight:  uint64(height),
 		TimeStamp:    time.Now().UnixNano(),
 	}
+
 	if n.GetRelay() {
 		version.P.Relay = 1
 	} else {
@@ -196,7 +209,7 @@ func NewConsensusDataReq(hash common.Uint256) mt.Message {
 }
 
 //DHT ping message packet
-func NewDHTPing(nodeID types.NodeID, udpPort, tcpPort uint16, srcAddr string,
+func NewDHTPing(nodeID types.NodeID, udpPort, tcpPort uint16, srcAddr *net.UDPAddr,
 	destAddr *net.UDPAddr, version uint16) mt.Message {
 	ping := new(mt.DHTPing)
 	ping.Version = version
@@ -205,7 +218,7 @@ func NewDHTPing(nodeID types.NodeID, udpPort, tcpPort uint16, srcAddr string,
 	ping.SrcEndPoint.UDPPort = udpPort
 	ping.SrcEndPoint.TCPPort = tcpPort
 
-	srcIP := net.ParseIP(srcAddr).To16()
+	srcIP := srcAddr.IP.To16()
 	if srcIP == nil {
 		log.Errorf("NewDHTPing: Parse IP address %s error", srcAddr)
 		return nil
@@ -225,7 +238,7 @@ func NewDHTPing(nodeID types.NodeID, udpPort, tcpPort uint16, srcAddr string,
 }
 
 //DHT pong message packet
-func NewDHTPong(nodeID types.NodeID, udpPort, tcpPort uint16, srcAddr string,
+func NewDHTPong(nodeID types.NodeID, udpPort, tcpPort uint16, srcAddr  *net.UDPAddr,
 	destAddr *net.UDPAddr, version uint16) mt.Message {
 	pong := new(mt.DHTPong)
 	pong.Version = version
@@ -233,7 +246,7 @@ func NewDHTPong(nodeID types.NodeID, udpPort, tcpPort uint16, srcAddr string,
 	pong.SrcEndPoint.UDPPort = udpPort
 	pong.SrcEndPoint.TCPPort = tcpPort
 
-	srcIP := net.ParseIP(srcAddr).To16()
+	srcIP := srcAddr.IP.To16()
 	if srcIP == nil {
 		log.Errorf("NewDHTPong: Parse IP address %s error", srcAddr)
 		return nil

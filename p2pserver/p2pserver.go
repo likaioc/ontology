@@ -19,6 +19,7 @@
 package p2pserver
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
@@ -56,7 +57,7 @@ type P2PServer struct {
 	blockSync *BlockSyncMgr
 	ledger    *ledger.Ledger
 	ReconnectAddrs
-	recentPeers    []dt.Node
+	recentPeers    map[uint32][]string
 	quitSyncRecent chan bool
 	quitOnline     chan bool
 	quitHeartBeat  chan bool
@@ -71,8 +72,8 @@ type ReconnectAddrs struct {
 
 //NewServer return a new p2pserver according to the pubkey
 func NewServer() *P2PServer {
-	id := dt.ConstructID(config.DefConfig.P2PNode.NetworkMgrCfg.DHT.IP,
-		config.DefConfig.P2PNode.NetworkMgrCfg.DHT.UDPPort)
+	id := dt.ConstructID("127.0.0.1",
+		config.DefConfig.P2PNode.DHTPort)
 	n := netserver.NewNetServer(id)
 
 	p := &P2PServer{
@@ -89,7 +90,7 @@ func NewServer() *P2PServer {
 
 	p.msgRouter = utils.NewMsgRouter(p.network)
 	p.blockSync = NewBlockSyncMgr(p)
-	p.recentPeers = make([]dt.Node, 0, common.RECENT_LIMIT)
+	p.recentPeers = make(map[uint32][]string)
 	p.quitSyncRecent = make(chan bool)
 	p.quitOnline = make(chan bool)
 	p.quitHeartBeat = make(chan bool)
@@ -162,44 +163,49 @@ func (this *P2PServer) GetDHT() *dht.DHT {
 func (this *P2PServer) Xmit(message interface{}) error {
 	log.Debug()
 	var msg msgtypes.Message
+	var msgHash comm.Uint256
 	isConsensus := false
 	switch message.(type) {
 	case *types.Transaction:
 		log.Debug("[p2p]TX transaction message")
 		txn := message.(*types.Transaction)
 		msg = msgpack.NewTxn(txn)
+		msgHash = txn.Hash()
 	case *types.Block:
 		log.Debug("[p2p]TX block message")
 		block := message.(*types.Block)
 		msg = msgpack.NewBlock(block)
+		msgHash = block.Hash()
 	case *msgtypes.ConsensusPayload:
 		log.Debug("[p2p]TX consensus message")
 		consensusPayload := message.(*msgtypes.ConsensusPayload)
 		msg = msgpack.NewConsensus(consensusPayload)
 		isConsensus = true
+		msgHash = consensusPayload.Hash()
 	case comm.Uint256:
 		log.Debug("[p2p]TX block hash message")
 		hash := message.(comm.Uint256)
 		// construct inv message
 		invPayload := msgpack.NewInvPayload(comm.BLOCK, []comm.Uint256{hash})
 		msg = msgpack.NewInv(invPayload)
+		msgHash = hash
 	default:
 		log.Warnf("[p2p]Unknown Xmit message %v , type %v", message,
 			reflect.TypeOf(message))
 		return errors.New("[p2p]Unknown Xmit message type")
 	}
-	this.network.Xmit(msg, isConsensus)
+	this.network.Xmit(msg, msgHash, isConsensus)
 	return nil
 }
 
-//Send tranfer buffer to peer
+//Send transfer buffer to peer
 func (this *P2PServer) Send(p *peer.Peer, msg msgtypes.Message,
 	isConsensus bool) error {
 	if this.network.IsPeerEstablished(p) {
 		return this.network.Send(p, msg, isConsensus)
 	}
-	log.Warnf("[p2p]send to a not ESTABLISH peer %d",
-		p.GetID())
+	log.Warnf("[p2p]send msg %s to a not ESTABLISH peer %d",
+		msg.CmdType(), p.GetID())
 	return errors.New("[p2p]send to a not ESTABLISH peer")
 }
 
@@ -486,6 +492,7 @@ func (this *P2PServer) connectSeedService() {
 		}
 	}
 }
+
 //keepOnline try connect lost peer
 func (this *P2PServer) keepOnlineService() {
 	t := time.NewTimer(time.Second * common.CONN_MONITOR)
@@ -603,10 +610,6 @@ func (this *P2PServer) tryRecentPeers() {
 		}
 		if len(this.recentPeers[netID]) > 0 {
 			log.Info("[p2p]try to connect recent peer")
-		log.Info("[p2p]try to connect recent peer")
-		for _, node := range this.recentPeers {
-			addr := node.IP + ":" + strconv.Itoa(int(node.TCPPort))
-			go this.network.Connect(addr, false)
 		}
 		for _, v := range this.recentPeers[netID] {
 			go this.network.Connect(v, false)
@@ -628,6 +631,7 @@ func (this *P2PServer) syncUpRecentPeers() {
 			break
 		}
 	}
+
 }
 
 //syncPeerAddr compare snapshot of recent peer with current link,then persist the list
@@ -636,49 +640,31 @@ func (this *P2PServer) syncPeerAddr() {
 	netID := config.DefConfig.P2PNode.NetworkMagic
 	for i := 0; i < len(this.recentPeers[netID]); i++ {
 		p := this.network.GetPeerFromAddr(this.recentPeers[netID][i])
-	for i := 0; i < len(this.recentPeers); i++ {
-		addr := this.recentPeers[i].IP + ":" + strconv.Itoa(int(this.recentPeers[i].TCPPort))
-		p := this.network.GetPeerFromAddr(addr)
 		if p == nil || (p != nil && p.GetSyncState() != common.ESTABLISH) {
-			this.recentPeers = append(this.recentPeers[:i], this.recentPeers[i+1:]...)
+			this.recentPeers[netID] = append(this.recentPeers[netID][:i], this.recentPeers[netID][i+1:]...)
 			changed = true
 			i--
 		}
 	}
-	left := common.RECENT_LIMIT - len(this.recentPeers)
+	left := common.RECENT_LIMIT - len(this.recentPeers[netID])
 	if left > 0 {
 		np := this.network.GetNp()
 		np.Lock()
-		found := false
+		var ip net.IP
 		for _, p := range np.List {
-			addrIp, err := common.ParseIPAddr(p.GetAddr())
-			if err != nil {
-				log.Info(err)
-				continue
-			}
-			port := p.GetSyncPort()
-			found = false
-			for i := 0; i < len(this.recentPeers); i++ {
-				if this.recentPeers[i].IP == addrIp &&
-					this.recentPeers[i].TCPPort == port {
+			addr, _ := p.GetAddr16()
+			ip = addr[:]
+			nodeAddr := ip.To16().String() + ":" +
+				strconv.Itoa(int(p.GetSyncPort()))
+			found := false
+			for i := 0; i < len(this.recentPeers[netID]); i++ {
+				if nodeAddr == this.recentPeers[netID][i] {
 					found = true
 					break
 				}
 			}
-
 			if !found {
-				node := dt.Node{
-					IP:      addrIp,
-					UDPPort: p.GetUDPPort(),
-					TCPPort: port,
-				}
-
-				id := dt.ConstructID(addrIp, p.GetUDPPort())
-				b := make([]byte, 8)
-				binary.LittleEndian.PutUint64(b, id)
-				copy(node.ID[:], b[:])
-
-				this.recentPeers = append(this.recentPeers, node)
+				this.recentPeers[netID] = append(this.recentPeers[netID], nodeAddr)
 				left--
 				changed = true
 				if left == 0 {
@@ -687,10 +673,13 @@ func (this *P2PServer) syncPeerAddr() {
 			}
 		}
 		np.Unlock()
-	} else if left < 0 {
-		left = -left
-		this.recentPeers = append(this.recentPeers[:0], this.recentPeers[0+left:]...)
-		changed = true
+	} else {
+		if left < 0 {
+			left = -left
+			this.recentPeers[netID] = append(this.recentPeers[netID][:0], this.recentPeers[netID][0+left:]...)
+			changed = true
+		}
+
 	}
 	if changed {
 		buf, err := json.Marshal(this.recentPeers)

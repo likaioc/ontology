@@ -25,8 +25,7 @@ import (
 	"github.com/ontio/ontology-eventbus/actor"
 	"github.com/ontio/ontology/common/log"
 	"github.com/ontio/ontology/p2pserver"
-	"github.com/ontio/ontology/p2pserver/common"
-	"github.com/ontio/ontology/p2pserver/message/types"
+	msgLocal "github.com/ontio/ontology/p2pserver/message/types/local"
 )
 
 type P2PActor struct {
@@ -86,16 +85,18 @@ func (this *P2PActor) Receive(ctx actor.Context) {
 		this.handleGetRelayStateReq(ctx, msg)
 	case *GetNodeTypeReq:
 		this.handleGetNodeTypeReq(ctx, msg)
-	case *types.TransmitConsensusMsgReq:
+	case *TransmitConsensusMsgReq:
 		this.handleTransmitConsensusMsgReq(ctx, msg)
-	case *common.AppendPeerID:
+	case *msgLocal.AppendPeerID:
 		this.server.OnAddNode(msg.ID)
-	case *common.RemovePeerID:
+	case *msgLocal.RemovePeerID:
 		this.server.OnDelNode(msg.ID)
-	case *common.AppendHeaders:
+	case *msgLocal.AppendHeaders:
 		this.server.OnHeaderReceive(msg.FromID, msg.Headers)
-	case *common.AppendBlock:
+	case *msgLocal.AppendBlock:
 		this.server.OnBlockReceive(msg.FromID, msg.BlockSize, msg.Block)
+	case *msgLocal.RelayTransmitConsensusMsgReq:
+		this.handleTransmitConsensusMsgReq(ctx, &TransmitConsensusMsgReq{msg.Target, msg.Msg})
 	default:
 		err := this.server.Xmit(ctx.Message())
 		if nil != err {
@@ -237,8 +238,7 @@ func (this *P2PActor) handleGetNodeTypeReq(ctx actor.Context, req *GetNodeTypeRe
 	}
 }
 
-func (this *P2PActor) handleTransmitConsensusMsgReq(ctx actor.Context,
-	req *types.TransmitConsensusMsgReq) {
+func (this *P2PActor) handleTransmitConsensusMsgReq(ctx actor.Context, req *TransmitConsensusMsgReq) {
 	peer := this.server.GetNetWork().GetPeer(req.Target)
 	if peer != nil && this.server.GetNetWork().IsPeerEstablished(peer) {
 		err := this.server.Send(peer, req.Msg, true)

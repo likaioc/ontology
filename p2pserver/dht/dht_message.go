@@ -238,7 +238,7 @@ func (this *DHT) findNodeReply(addr *net.UDPAddr, targetId types.NodeID) error {
 // ping the remote node
 func (this *DHT) ping(destAddr *net.UDPAddr) error {
 	pingMsg := msgpack.NewDHTPing(this.nodeID, this.udpPort,
-		this.tcpPort, this.addr, destAddr, this.version)
+		this.tcpPort, this.conn.LocalAddr().(*net.UDPAddr), destAddr, this.version)
 	if pingMsg == nil {
 		return errors.New("[dht] faile to new dht ping")
 	}
@@ -250,7 +250,7 @@ func (this *DHT) ping(destAddr *net.UDPAddr) error {
 // pong reply remote node when receiving ping
 func (this *DHT) pong(destAddr *net.UDPAddr) error {
 	pongMsg := msgpack.NewDHTPong(this.nodeID, this.udpPort,
-		this.tcpPort, this.addr, destAddr, this.version)
+		this.tcpPort, this.conn.LocalAddr().(*net.UDPAddr), destAddr, this.version)
 	if pongMsg == nil {
 		return errors.New("[dht] faile to new dht pong")
 	}

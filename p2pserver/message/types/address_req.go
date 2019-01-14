@@ -19,24 +19,22 @@
 package types
 
 import (
-	comm "github.com/ontio/ontology/common"
-	"github.com/ontio/ontology/p2pserver/common"
+	"github.com/ontio/ontology/common"
+	comm "github.com/ontio/ontology/p2pserver/common"
 )
 
-type Consensus struct {
-	Cons ConsensusPayload
-}
+type AddrReq struct{}
 
 //Serialize message payload
-func (this *Consensus) Serialization(sink *comm.ZeroCopySink) error {
-	return this.Cons.Serialization(sink)
+func (this AddrReq) Serialization(sink *common.ZeroCopySink) error {
+	return nil
 }
 
-func (this *Consensus) CmdType() string {
-	return common.CONSENSUS_TYPE
+func (this *AddrReq) CmdType() string {
+	return comm.GetADDR_TYPE
 }
 
 //Deserialize message payload
-func (this *Consensus) Deserialization(source *comm.ZeroCopySource) error {
-	return this.Cons.Deserialization(source)
+func (this *AddrReq) Deserialization(source *common.ZeroCopySource) error {
+	return nil
 }

@@ -125,7 +125,6 @@ func (this *NetServer) init(id uint64) error {
 		this.base.SetConsPort(0)
 	}
 
-	this.base.SetUDPPort(config.DefConfig.P2PNode.NetworkMgrCfg.DHT.UDPPort)
 	this.base.SetRelay(true)
 
 	/*rand.Seed(time.Now().UnixNano())
@@ -248,10 +247,6 @@ func (this *NetServer) GetSyncPort() uint16 {
 //GetConsPort return the cons port
 func (this *NetServer) GetConsPort() uint16 {
 	return this.base.GetConsPort()
-}
-
-func (this *NetServer) GetUDPPort() uint16 {
-	return this.base.GetUDPPort()
 }
 
 //GetHttpInfoPort return the port support info via http

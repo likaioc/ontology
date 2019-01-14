@@ -366,15 +366,6 @@ func (self *Server) heartbeat() {
 	}
 }
 
-func (self *Server) heartbeatToPeer(peerIdx uint32, msg *peerHeartbeatMsg) {
-	//	build heartbeat msg
-	//	send to peer
-	self.msgSendC <- &SendMsgEvent{
-		ToPeer: peerIdx,
-		Msg:    msg,
-	}
-}
-
 func (self *Server) receiveFromPeer(peerIdx uint32) (uint32, []byte, error) {
 	if C, present := self.msgRecvC[peerIdx]; present {
 		select {
@@ -391,18 +382,18 @@ func (self *Server) receiveFromPeer(peerIdx uint32) (uint32, []byte, error) {
 	return 0, nil, fmt.Errorf("nil consensus payload")
 }
 
-func (self *Server) sendToPeer(peerIdx uint32, data []byte, msgType MsgType) error {
+func (self *Server) sendToPeer(peerIdx uint32, data []byte) error {
 	peer := self.peerPool.getPeer(peerIdx)
 	if peer == nil {
 		return fmt.Errorf("send peer failed: failed to get peer %d", peerIdx)
 	}
-	p2pid, present := self.peerPool.getP2pId(peerIdx)
+
+	p2pid, present:= self.peerPool.getP2pId(peerIdx)
 	if present {
 		msg := &p2pmsg.ConsensusPayload{
 			Data:   data,
 			Owner:  self.account.PublicKey,
-			DestID: p2pid,
-			PeerId: self.NodeID,
+			PeerId: p2pid,
 		}
 
 		buf := new(bytes.Buffer)
@@ -416,7 +407,6 @@ func (self *Server) sendToPeer(peerIdx uint32, data []byte, msgType MsgType) err
 	} else {
 		log.Errorf("sendToPeer transmit failed index:%d", peerIdx)
 	}
-
 	return nil
 }
 
@@ -428,12 +418,11 @@ func (self *Server) broadcast(msg ConsensusMsg) error {
 	return nil
 }
 
-func (self *Server) broadcastToAll(data []byte, msgType MsgType) error {
+func (self *Server) broadcastToAll(data []byte) error {
 	msg := &p2pmsg.ConsensusPayload{
 		Data:   data,
 		Owner:  self.account.PublicKey,
-		DestID: 0,
-		PeerId: self.NodeID,
+		PeerId: 0,
 	}
 
 	buf := new(bytes.Buffer)

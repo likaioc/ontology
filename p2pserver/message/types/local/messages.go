@@ -16,27 +16,34 @@
  * along with The ontology.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package types
+ package local
 
 import (
-	comm "github.com/ontio/ontology/common"
-	"github.com/ontio/ontology/p2pserver/common"
+	"github.com/ontio/ontology/core/types"
+	ptypes "github.com/ontio/ontology/p2pserver/message/types"
 )
 
-type Consensus struct {
-	Cons ConsensusPayload
+type AppendPeerID struct {
+	ID uint64 // The peer id
 }
 
-//Serialize message payload
-func (this *Consensus) Serialization(sink *comm.ZeroCopySink) error {
-	return this.Cons.Serialization(sink)
+type RemovePeerID struct {
+	ID uint64 // The peer id
 }
 
-func (this *Consensus) CmdType() string {
-	return common.CONSENSUS_TYPE
+type AppendHeaders struct {
+	FromID  uint64          // The peer id
+	Headers []*types.Header // Headers to be added to the ledger
 }
 
-//Deserialize message payload
-func (this *Consensus) Deserialization(source *comm.ZeroCopySource) error {
-	return this.Cons.Deserialization(source)
+type AppendBlock struct {
+	FromID    uint64       // The peer id
+	BlockSize uint32       // Block size
+	Block     *types.Block // Block to be added to the ledger
 }
+
+type RelayTransmitConsensusMsgReq struct {
+	Target uint64
+	Msg    ptypes.Message
+}
+

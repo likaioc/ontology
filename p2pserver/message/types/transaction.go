@@ -19,8 +19,6 @@
 package types
 
 import (
-	"io"
-
 	comm "github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/core/types"
 	"github.com/ontio/ontology/p2pserver/common"
@@ -29,17 +27,11 @@ import (
 // Transaction message
 type Trn struct {
 	Txn *types.Transaction
-	Hop uint8
 }
 
 //Serialize message payload
 func (this Trn) Serialization(sink *comm.ZeroCopySink) error {
-	err := this.Txn.Serialization(sink)
-	if err != nil {
-		return err
-	}
-	sink.WriteUint8(this.Hop)
-	return nil
+	return this.Txn.Serialization(sink)
 }
 
 func (this *Trn) CmdType() string {
@@ -55,11 +47,5 @@ func (this *Trn) Deserialization(source *comm.ZeroCopySource) error {
 	}
 
 	this.Txn = tx
-
-	var eof bool
-	this.Hop, eof = source.NextUint8()
-	if eof {
-		return io.ErrUnexpectedEOF
-	}
 	return nil
 }

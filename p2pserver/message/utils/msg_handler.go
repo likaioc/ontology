@@ -21,11 +21,12 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru"
 	evtActor "github.com/ontio/ontology-eventbus/actor"
 	"github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/common/config"
@@ -36,11 +37,48 @@ import (
 	msgCommon "github.com/ontio/ontology/p2pserver/common"
 	"github.com/ontio/ontology/p2pserver/message/msg_pack"
 	msgTypes "github.com/ontio/ontology/p2pserver/message/types"
+	msgLocal "github.com/ontio/ontology/p2pserver/message/types/local"
 	"github.com/ontio/ontology/p2pserver/net/protocol"
 )
 
 //respCache cache for some response data
 var respCache *lru.ARCCache
+
+// AddrReqHandle handles the neighbor address request from peer
+func AddrReqHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, args ...interface{}) {
+	log.Trace("[p2p]receive addr request message", data.Addr, data.Id)
+	remotePeer := p2p.GetPeer(data.Id)
+	if remotePeer == nil {
+		log.Debug("[p2p]remotePeer invalid in AddrReqHandle")
+		return
+	}
+
+	var addrStr []msgCommon.PeerAddr
+	addrStr = p2p.GetNeighborAddrs()
+	//check mask peers
+	mskPeers := config.DefConfig.P2PNode.ReservedCfg.MaskPeers
+	if config.DefConfig.P2PNode.ReservedPeersOnly && len(mskPeers) > 0 {
+		for i := 0; i < len(addrStr); i++ {
+			var ip net.IP
+			ip = addrStr[i].IpAddr[:]
+			address := ip.To16().String()
+			for j := 0; j < len(mskPeers); j++ {
+				if address == mskPeers[j] {
+					addrStr = append(addrStr[:i], addrStr[i+1:]...)
+					i--
+					break
+				}
+			}
+		}
+
+	}
+	msg := msgpack.NewAddrs(addrStr)
+	err := p2p.Send(remotePeer, msg, false)
+	if err != nil {
+		log.Warn(err)
+		return
+	}
+}
 
 // HeaderReqHandle handles the header sync req from peer
 func HeadersReqHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, args ...interface{}) {
@@ -110,7 +148,7 @@ func BlkHeaderHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, 
 	log.Trace("[p2p]receive block header message", data.Addr, data.Id)
 	if pid != nil {
 		var blkHeader = data.Payload.(*msgTypes.BlkHeader)
-		input := &msgCommon.AppendHeaders{
+		input := &msgLocal.AppendHeaders{
 			FromID:  data.Id,
 			Headers: blkHeader.BlkHdr,
 		}
@@ -130,7 +168,7 @@ func BlockHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, args
 
 	if pid != nil {
 		var block = data.Payload.(*msgTypes.Block)
-		input := &msgCommon.AppendBlock{
+		input := &msgLocal.AppendBlock{
 			FromID:    data.Id,
 			BlockSize: data.PayloadSize,
 			Block:     block.Blk,
@@ -156,30 +194,21 @@ func ConsensusHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, 
 			log.Warn(err)
 			return
 		}
-		if consensus.Hop > msgCommon.MAX_HOP || consensus.Hop == 0 {
-			log.Errorf("[p2p]receive consensus hop unexpected from %v %d", data.Addr, data.Id)
-			return
-		}
-
-		if consensus.Cons.DestID == 0 || consensus.Cons.DestID == p2p.GetID() {
+		if consensus.Cons.PeerId == 0 || consensus.Cons.PeerId == p2p.GetID() {
 			actor.ConsensusPid.Tell(&consensus.Cons)
 		}
 
-		remotePeer.MarkHashAsSeen(consensus.Cons.Hash())
-		consensus.Hop--
+		remotePeer.MarkHashAsSeen(consensus.Cons.Hash())	
 
 		// Relay msg to other remote peers
-		// TODO open relay of consensus node
-		if consensus.Hop > 0 && p2p.GetServices() != msgCommon.VERIFY_NODE {
-			if consensus.Cons.DestID == 0 {
-				p2p.Xmit(consensus, consensus.Cons.Hash(), true)
-			} else if consensus.Cons.DestID != p2p.GetID() {
-				msg := &msgTypes.TransmitConsensusMsgReq{
-					Target: consensus.Cons.DestID,
-					Msg:    consensus,
-				}
-				pid.Tell(msg)
+		if consensus.Cons.PeerId == 0 {
+			p2p.Xmit(consensus, consensus.Cons.Hash(), true)
+		} else if consensus.Cons.PeerId != p2p.GetID() {
+			msg := &msgLocal.RelayTransmitConsensusMsgReq{
+				Target: consensus.Cons.PeerId,
+				Msg:    consensus,
 			}
+			pid.Tell(msg)
 		}
 	}
 }
@@ -203,18 +232,11 @@ func TransactionHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID
 		log.Errorf("remotePeer %d, addr is %s, invalid in TransactionHandle", data.Id, data.Addr)
 		return
 	}
-	if trn.Hop > msgCommon.MAX_HOP || trn.Hop == 0 {
-		log.Errorf("[p2p]receive transaction hop unexpected from %v %d", data.Addr, data.Id)
-		return
-	}
 
 	remotePeer.MarkHashAsSeen(trn.Txn.Hash())
-	trn.Hop--
 
-	// TODO open relay of consensus node
-	if trn.Hop > 0 && p2p.GetServices() != msgCommon.VERIFY_NODE {
-		p2p.Xmit(trn, trn.Txn.Hash(), false)
-	}
+	p2p.Xmit(trn, trn.Txn.Hash(), false)
+	
 }
 
 // VersionHandle handles version handshake protocol from peer
@@ -296,9 +318,8 @@ func VersionHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, ar
 		// Todo: change the method of input parameters
 		remotePeer.UpdateInfo(time.Now(), version.P.Version,
 			version.P.Services, version.P.SyncPort,
-			version.P.ConsPort, version.P.UDPPort,
-			version.P.Nonce, version.P.Relay,
-			version.P.StartHeight)
+			version.P.ConsPort, version.P.Nonce,
+			version.P.Relay, version.P.StartHeight)
 
 		var msg msgTypes.Message
 		if s == msgCommon.INIT {
@@ -354,7 +375,7 @@ func VersionHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, ar
 					n.CloseSync()
 					n.CloseCons()
 					if pid != nil {
-						input := &msgCommon.RemovePeerID{
+						input := &msgLocal.RemovePeerID{
 							ID: version.P.Nonce,
 						}
 						pid.Tell(input)
@@ -376,14 +397,13 @@ func VersionHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, ar
 		remotePeer.SetHttpInfoPort(version.P.HttpInfoPort)
 		remotePeer.UpdateInfo(time.Now(), version.P.Version,
 			version.P.Services, version.P.SyncPort,
-			version.P.ConsPort, version.P.UDPPort,
-			version.P.Nonce, version.P.Relay,
-			version.P.StartHeight)
+			version.P.ConsPort, version.P.Nonce,
+			version.P.Relay, version.P.StartHeight)
 		remotePeer.SyncLink.SetID(version.P.Nonce)
 		p2p.AddNbrNode(remotePeer)
 
 		if pid != nil {
-			input := &msgCommon.AppendPeerID{
+			input := &msgLocal.AppendPeerID{
 				ID: version.P.Nonce,
 			}
 			pid.Tell(input)
@@ -477,8 +497,44 @@ func VerAckHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, arg
 				go p2p.Connect(nodeConsensusAddr, true)
 			}
 		}
+
+		msg := msgpack.NewAddrReq()
+		go p2p.Send(remotePeer, msg, false)
 	}
 
+}
+
+// AddrHandle handles the neighbor address response message from peer
+func AddrHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, args ...interface{}) {
+	log.Trace("[p2p]handle addr message", data.Addr, data.Id)
+
+	var msg = data.Payload.(*msgTypes.Addr)
+	for _, v := range msg.NodeAddrs {
+		var ip net.IP
+		ip = v.IpAddr[:]
+		address := ip.To16().String() + ":" + strconv.Itoa(int(v.Port))
+
+		if v.ID == p2p.GetID() {
+			continue
+		}
+
+		if p2p.NodeEstablished(v.ID) {
+			continue
+		}
+
+		if ret := p2p.GetPeerFromAddr(address); ret != nil {
+			continue
+		}
+
+		if v.Port == 0 {
+			continue
+		}
+		if p2p.IsAddrFromConnecting(address) {
+			continue
+		}
+		log.Debug("[p2p]connect ip address:", address)
+		go p2p.Connect(address, false)
+	}
 }
 
 // DataReqHandle handles the data req(block/Transaction) from peer
@@ -569,10 +625,7 @@ func InvHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, args .
 		log.Debug("[p2p]empty inv payload in InvHandle")
 		return
 	}
-	if inv.Hop > msgCommon.MAX_HOP || inv.Hop == 0 {
-		log.Errorf("[p2p]receive inv hop unexpected from %v %v", data.Addr, data.Id)
-		return
-	}
+
 	var id common.Uint256
 	str := inv.P.Blk[0].ToHexString()
 	log.Debugf("[p2p]the inv type: 0x%x block len: %d, %s\n",
@@ -616,11 +669,6 @@ func InvHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, args .
 					return
 				}
 			}
-		}
-
-		inv.Hop--
-		if inv.Hop > 0 {
-			p2p.Xmit(inv, inv.P.Blk[0], false)
 		}
 
 	case common.CONSENSUS:
