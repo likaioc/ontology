@@ -58,6 +58,7 @@ const (
 	DEFAULT_REST_PORT                       = uint(20334)
 	DEFAULT_WS_PORT                         = uint(20335)
 	DEFAULT_DHT_PORT                        = uint16(20390)
+	DEFAULT_ROUTING                         = constants.P2P_ROUTING_ALL
 	DEFAULT_MAX_CONN_IN_BOUND               = uint(1024)
 	DEFAULT_MAX_CONN_OUT_BOUND              = uint(1024)
 	DEFAULT_MAX_CONN_IN_BOUND_FOR_SINGLE_IP = uint(16)
@@ -506,6 +507,7 @@ type P2PNodeConfig struct {
 	CAPath                    string
 	HttpInfoPort              uint
 	DHTPort                   uint16
+	RoutingMode               constants.RoutingModeType
 	MaxHdrSyncReqs            uint
 	MaxConnInBound            uint
 	MaxConnOutBound           uint
@@ -571,6 +573,7 @@ func NewOntologyConfig() *OntologyConfig {
 			CAPath:                    "",
 			HttpInfoPort:              DEFAULT_HTTP_INFO_PORT,
 			DHTPort:                   DEFAULT_DHT_PORT,
+			RoutingMode:               DEFAULT_ROUTING,
 			MaxHdrSyncReqs:            DEFAULT_MAX_SYNC_HEADER,
 			MaxConnInBound:            DEFAULT_MAX_CONN_IN_BOUND,
 			MaxConnOutBound:           DEFAULT_MAX_CONN_OUT_BOUND,

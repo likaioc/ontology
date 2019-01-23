@@ -78,3 +78,16 @@ const (
 	NETWORK_MAGIC_MAINNET = 0x8c77ab60
 	NETWORK_MAGIC_POLARIS = 0x2d8829df
 )
+
+//routing mode
+const (
+	P2P_ROUTING_GENERAL = 0x001
+	P2P_ROUTING_DHT     = 0x002
+	P2P_ROUTING_ALL     = P2P_ROUTING_GENERAL | P2P_ROUTING_DHT
+)
+type RoutingModeType uint64
+var RModeMap = map[RoutingModeType]string {
+	P2P_ROUTING_GENERAL: "General Routing",
+	P2P_ROUTING_DHT:     "DHT Routing",
+	P2P_ROUTING_ALL:     "All Routing",
+}

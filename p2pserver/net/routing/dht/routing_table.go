@@ -20,9 +20,11 @@ package dht
 
 import (
 	"container/heap"
+	"encoding/binary"
 	"sync"
 
-	"github.com/ontio/ontology/p2pserver/dht/types"
+	ontNet "github.com/ontio/ontology/p2pserver/net"
+	"github.com/ontio/ontology/p2pserver/net/routing/dht/types"
 )
 
 type bucket struct {
@@ -33,11 +35,11 @@ type routingTable struct {
 	mu      sync.RWMutex
 	id      types.NodeID          // Local node id
 	buckets []*bucket             // Hold routing table
-	feedCh  chan *types.FeedEvent // The channel between dht and netserver
+	feedCh  chan *ontNet.FeedEvent // The channel between dht and netserver
 }
 
 // init initializes a routing table
-func (this *routingTable) init(id types.NodeID, ch chan *types.FeedEvent) {
+func (this *routingTable) init(id types.NodeID, ch chan *ontNet.FeedEvent) {
 	this.buckets = make([]*bucket, types.BUCKET_NUM)
 	for i := range this.buckets {
 		this.buckets[i] = &bucket{
@@ -75,15 +77,21 @@ func (this *routingTable) queryNode(id types.NodeID) (*types.Node, int) {
 func (this *routingTable) addNode(node *types.Node, bucketIndex int) bool {
 	this.mu.Lock()
 	defer this.mu.Unlock()
+
+	feedInfo := &ontNet.FeedInfo{
+		ID:binary.LittleEndian.Uint64(node.ID.Bytes()),
+		IP: node.IP,
+		TCPPort: node.TCPPort,
+	}
 	bucket := this.buckets[bucketIndex]
 	for i, entry := range bucket.entries {
 		if entry.ID == node.ID {
 			copy(bucket.entries[1:], bucket.entries[:i])
 			bucket.entries[0] = node
 			if this.feedCh != nil {
-				feed := &types.FeedEvent{
-					EvtType: types.Add,
-					Event:   node,
+				feed := &ontNet.FeedEvent{
+					EvtType: ontNet.Add,
+					Event:   feedInfo,
 				}
 				this.feedCh <- feed
 			}
@@ -102,9 +110,9 @@ func (this *routingTable) addNode(node *types.Node, bucketIndex int) bool {
 	copy(bucket.entries[1:], bucket.entries[:])
 	bucket.entries[0] = node
 	if this.feedCh != nil {
-		feed := &types.FeedEvent{
-			EvtType: types.Add,
-			Event:   node,
+		feed := &ontNet.FeedEvent{
+			EvtType: ontNet.Add,
+			Event:   feedInfo,
 		}
 		this.feedCh <- feed
 	}
@@ -129,9 +137,14 @@ func (this *routingTable) removeNode(id types.NodeID) {
 	bucket.entries = entries
 
 	if node != nil && this.feedCh != nil {
-		feed := &types.FeedEvent{
-			EvtType: types.Del,
-			Event:   node,
+		feedInfo := &ontNet.FeedInfo{
+			ID:binary.LittleEndian.Uint64(node.ID.Bytes()),
+			IP: node.IP,
+			TCPPort: node.TCPPort,
+		}
+		feed := &ontNet.FeedEvent{
+			EvtType: ontNet.Del,
+			Event:   feedInfo,
 		}
 		this.feedCh <- feed
 	}

@@ -25,12 +25,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	comm "github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/common/log"
-	"github.com/ontio/ontology/p2pserver/dht/types"
+
+	"github.com/ontio/ontology/p2pserver/common"
 	"github.com/ontio/ontology/p2pserver/message/msg_pack"
 	mt "github.com/ontio/ontology/p2pserver/message/types"
-	"github.com/stretchr/testify/assert"
+	"github.com/ontio/ontology/p2pserver/net/routing/dht"
+	"github.com/ontio/ontology/p2pserver/net/routing/dht/types"
 )
 
 func init() {
@@ -46,7 +50,7 @@ func createNodes(num int) []*types.Node {
 			UDPPort: uint16(30000 + i),
 			TCPPort: uint16(20000 + i),
 		}
-		id := types.ConstructID(node.IP, node.UDPPort)
+		id := common.ConstructID(node.IP, node.UDPPort)
 		b := make([]byte, 8)
 		binary.LittleEndian.PutUint64(b, id)
 		copy(node.ID[:], b[:])
@@ -56,7 +60,7 @@ func createNodes(num int) []*types.Node {
 }
 
 func TestDHT(t *testing.T) {
-	id := types.ConstructID("127.0.0.1", 20332)
+	id := common.ConstructID("127.0.0.1", 20332)
 
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, id)

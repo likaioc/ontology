@@ -19,7 +19,6 @@
 package netserver
 
 import (
-	"encoding/binary"
 	"errors"
 	"net"
 	"strconv"
@@ -32,15 +31,15 @@ import (
 	"github.com/ontio/ontology/common/log"
 	"github.com/ontio/ontology/core/ledger"
 	"github.com/ontio/ontology/p2pserver/common"
-	dt "github.com/ontio/ontology/p2pserver/dht/types"
 	"github.com/ontio/ontology/p2pserver/message/msg_pack"
 	"github.com/ontio/ontology/p2pserver/message/types"
+	ontNet "github.com/ontio/ontology/p2pserver/net"
 	"github.com/ontio/ontology/p2pserver/net/protocol"
 	"github.com/ontio/ontology/p2pserver/peer"
 )
 
 //NewNetServer return the net object in p2p
-func NewNetServer(id uint64) p2p.P2P {
+func NewNetServer(id uint64) (p2p.P2P, ontNet.NetLayer) {
 	n := &NetServer{
 		SyncChan: make(chan *types.MsgPayload, common.CHAN_CAPABILITY),
 		ConsChan: make(chan *types.MsgPayload, common.CHAN_CAPABILITY),
@@ -50,8 +49,9 @@ func NewNetServer(id uint64) p2p.P2P {
 	n.PeerAddrMap.PeerConsAddress = make(map[string]*peer.Peer)
 
 	n.stopLoop = make(chan struct{}, 1)
+
 	n.init(id)
-	return n
+	return n, n
 }
 
 //NetServer represent all the actions in net layer
@@ -61,7 +61,7 @@ type NetServer struct {
 	conslistener net.Listener
 	SyncChan     chan *types.MsgPayload
 	ConsChan     chan *types.MsgPayload
-	feedCh       chan *dt.FeedEvent
+	feedCh       chan *ontNet.FeedEvent
 	stopLoop     chan struct{}
 	ConnectingNodes
 	PeerAddrMap
@@ -142,10 +142,9 @@ func (this *NetServer) init(id uint64) error {
 //InitListen start listening on the config port
 func (this *NetServer) Start() {
 	this.startListening()
-	go this.loop()
 }
 
-func (this *NetServer) loop() {
+func (this *NetServer) LoopRecvRoutingMsg() {
 	for {
 		select {
 		case event, ok := <-this.feedCh:
@@ -159,12 +158,12 @@ func (this *NetServer) loop() {
 	}
 }
 
-func (this *NetServer) handleFeed(event *dt.FeedEvent) {
+func (this *NetServer) handleFeed(event *ontNet.FeedEvent) {
 	switch event.EvtType {
-	case dt.Add:
-		node := event.Event.(*dt.Node)
-		address := node.IP + ":" + strconv.Itoa(int(node.TCPPort))
-		id := binary.LittleEndian.Uint64(node.ID.Bytes())
+	case ontNet.Add:
+		feedInfo := event.Event.(*ontNet.FeedInfo)
+		address := feedInfo.IP + ":" + strconv.Itoa(int(feedInfo.TCPPort))
+		id := feedInfo.ID
 		if this.GetID() == id {
 			return
 		}
@@ -178,9 +177,9 @@ func (this *NetServer) handleFeed(event *dt.FeedEvent) {
 			return
 		}
 		this.Connect(address, false)
-	case dt.Del:
-		node := event.Event.(*dt.Node)
-		address := node.IP + ":" + strconv.Itoa(int(node.TCPPort))
+	case ontNet.Del:
+		feedInfo := event.Event.(*ontNet.FeedInfo)
+		address := feedInfo.IP + ":" + strconv.Itoa(int(feedInfo.TCPPort))
 		this.disconnectPeer(address)
 	default:
 		log.Infof("handle feed: unknown feed event %d", event.EvtType)
@@ -204,7 +203,7 @@ func (this *NetServer) disconnectPeer(address string) {
 	log.Infof("disconnect peer %s", address)
 }
 
-func (this *NetServer) SetFeedCh(ch chan *dt.FeedEvent) {
+func (this *NetServer) SetFeedCh(ch chan *ontNet.FeedEvent) {
 	this.feedCh = ch
 }
 

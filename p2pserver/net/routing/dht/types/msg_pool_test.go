@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/ontio/ontology/common/log"
+	"github.com/ontio/ontology/p2pserver/common"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -41,7 +42,7 @@ func TestMsgPool(t *testing.T) {
 		UDPPort: uint16(20332),
 		TCPPort: uint16(20333),
 	}
-	id := ConstructID(node.IP, node.UDPPort)
+	id := common.ConstructID(node.IP, node.UDPPort)
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, id)
 	copy(node.ID[:], b[:])
@@ -65,7 +66,7 @@ func TestMsgPool(t *testing.T) {
 }
 
 func TestReqType(t *testing.T) {
-	id := ConstructID("127.0.0.1", uint16(18888))
+	id := common.ConstructID("127.0.0.1", uint16(18888))
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, id)
 	var nodeID NodeID

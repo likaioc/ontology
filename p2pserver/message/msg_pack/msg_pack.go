@@ -19,6 +19,7 @@
 package msgpack
 
 import (
+	"net"
 	"time"
 
 	"github.com/ontio/ontology/common"
@@ -26,10 +27,9 @@ import (
 	"github.com/ontio/ontology/common/log"
 	ct "github.com/ontio/ontology/core/types"
 	msgCommon "github.com/ontio/ontology/p2pserver/common"
-	"github.com/ontio/ontology/p2pserver/dht/types"
 	mt "github.com/ontio/ontology/p2pserver/message/types"
 	p2pnet "github.com/ontio/ontology/p2pserver/net/protocol"
-	"net"
+	"github.com/ontio/ontology/p2pserver/net/routing/dht/types"
 )
 
 //Peer address package

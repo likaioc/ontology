@@ -33,8 +33,9 @@ import (
 	"github.com/ontio/ontology/common/config"
 	"github.com/ontio/ontology/common/log"
 	"github.com/ontio/ontology/p2pserver/common"
-	"github.com/ontio/ontology/p2pserver/dht/types"
 	mt "github.com/ontio/ontology/p2pserver/message/types"
+	ontNet "github.com/ontio/ontology/p2pserver/net"
+	"github.com/ontio/ontology/p2pserver/net/routing/dht/types"
 )
 
 const (
@@ -55,7 +56,7 @@ type DHT struct {
 	messagePool    *types.DHTMessagePool        // Manage the request msgs(ping, findNode)
 	recvCh         chan *types.DHTMessage       // The queue to receive msg from UDP network
 	bootstrapNodes map[types.NodeID]*types.Node // Hold inital nodes from configure and peer file to contact
-	feedCh         chan *types.FeedEvent        // Notify netserver of add/del a remote peer
+	feedCh         chan *ontNet.FeedEvent        // Notify netserver of add/del a remote peer
 	stopCh         chan struct{}                // Stop DHT module
 
 	whiteList []string
@@ -100,7 +101,7 @@ func loadSubSeeds(peerAddr string) *types.Node {
 		UDPPort: config.DefConfig.P2PNode.DHTPort,
 		TCPPort: uint16(portNum),
 	}
-	id := types.ConstructID(n.IP, n.UDPPort)
+	id := common.ConstructID(n.IP, n.UDPPort)
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, id)
 	copy(n.ID[:], b[:])
@@ -126,7 +127,7 @@ func (this *DHT) init() {
 	this.recvCh = make(chan *types.DHTMessage, types.MSG_CACHE)
 	this.stopCh = make(chan struct{})
 	this.messagePool = types.NewRequestPool(this.onRequestTimeOut)
-	this.feedCh = make(chan *types.FeedEvent, types.MSG_CACHE)
+	this.feedCh = make(chan *ontNet.FeedEvent, types.MSG_CACHE)
 	this.routingTable.init(this.nodeID, this.feedCh)
 
 	// load white list and black list
@@ -135,7 +136,7 @@ func (this *DHT) init() {
 }
 
 // Start starts DHT service
-func (this *DHT) Start() {
+func (this *DHT) start() {
 	seeds := loadSeeds()
 	for _, seed := range seeds {
 		if seed.ID != this.nodeID {
@@ -154,7 +155,7 @@ func (this *DHT) Start() {
 }
 
 // Stop stops DHT service
-func (this *DHT) Stop() {
+func (this *DHT) stop() {
 	if this.stopCh != nil {
 		this.stopCh <- struct{}{}
 	}
@@ -167,7 +168,7 @@ func (this *DHT) Stop() {
 }
 
 //SetFallbackNodes appends recent connected peers
-func (this *DHT) SetFallbackNodes(recentPeers map[uint32][]string) {
+func (this *DHT) setFallbackNodes(recentPeers map[uint32][]string) {
 	netID := config.DefConfig.P2PNode.NetworkMagic
 	for _, peer := range recentPeers[netID] {
          n := loadSubSeeds(peer)
@@ -205,7 +206,7 @@ func (this *DHT) syncAddNodes(nodes map[types.NodeID]*types.Node) {
 }
 
 // GetFeecCh returns the feed event channel
-func (this *DHT) GetFeedCh() chan *types.FeedEvent {
+func (this *DHT) getFeedCh() chan *ontNet.FeedEvent {
 	return this.feedCh
 }
 

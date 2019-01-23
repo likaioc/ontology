@@ -46,15 +46,3 @@ type Node struct {
 	UDPPort uint16 `json:UDPPort`
 	TCPPort uint16 `json:TCPPort`
 }
-
-type feedType uint8
-
-const (
-	Add feedType = iota
-	Del
-)
-
-type FeedEvent struct {
-	EvtType feedType
-	Event   interface{}
-}

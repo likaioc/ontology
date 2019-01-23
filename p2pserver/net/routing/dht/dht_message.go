@@ -26,9 +26,9 @@ import (
 
 	"github.com/ontio/ontology/common/config"
 	"github.com/ontio/ontology/common/log"
-	"github.com/ontio/ontology/p2pserver/dht/types"
 	"github.com/ontio/ontology/p2pserver/message/msg_pack"
 	mt "github.com/ontio/ontology/p2pserver/message/types"
+	"github.com/ontio/ontology/p2pserver/net/routing/dht/types"
 )
 
 // findNodeHandle handles a find node message from UDP network

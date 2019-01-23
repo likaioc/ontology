@@ -19,7 +19,9 @@
 package common
 
 import (
+	"bytes"
 	"errors"
+	"hash/crc64"
 	"strconv"
 	"strings"
 )
@@ -157,4 +159,16 @@ func ParseIPPort(s string) (string, error) {
 		return "", errors.New("[p2p]port out of bound")
 	}
 	return s[i:], nil
+}
+
+// ConstructID returns a marshaled representation of the given address:port.
+func ConstructID(ip string, port uint16) uint64 {
+	var buffer bytes.Buffer
+	buffer.WriteString(ip)
+	buffer.WriteString(":")
+	buffer.WriteString(strconv.Itoa(int(port)))
+
+	crcTable := crc64.MakeTable(crc64.ECMA)
+	id := crc64.Checksum(buffer.Bytes(), crcTable)
+	return id
 }

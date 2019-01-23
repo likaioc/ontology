@@ -19,12 +19,9 @@
 package types
 
 import (
-	"bytes"
 	"container/heap"
 	"encoding/hex"
 	"fmt"
-	"hash/crc64"
-	"strconv"
 	"strings"
 )
 
@@ -60,18 +57,6 @@ func StringID(in string) (NodeID, error) {
 	}
 	copy(id[:], b)
 	return id, nil
-}
-
-// ConstructID returns a marshaled representation of the given address:port.
-func ConstructID(ip string, port uint16) uint64 {
-	var buffer bytes.Buffer
-	buffer.WriteString(ip)
-	buffer.WriteString(":")
-	buffer.WriteString(strconv.Itoa(int(port)))
-
-	crcTable := crc64.MakeTable(crc64.ECMA)
-	id := crc64.Checksum(buffer.Bytes(), crcTable)
-	return id
 }
 
 type Item struct {

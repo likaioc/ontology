@@ -19,7 +19,6 @@
 package server
 
 import (
-	"encoding/binary"
 	"reflect"
 
 	"github.com/ontio/ontology-eventbus/actor"
@@ -241,31 +240,13 @@ func (this *P2PActor) handleGetNodeTypeReq(ctx actor.Context, req *GetNodeTypeRe
 func (this *P2PActor) handleTransmitConsensusMsgReq(ctx actor.Context, req *TransmitConsensusMsgReq) {
 	peer := this.server.GetNetWork().GetPeer(req.Target)
 	if peer != nil && this.server.GetNetWork().IsPeerEstablished(peer) {
-		err := this.server.Send(peer, req.Msg, true)
+		err := this.server.GetNetWork().Send(peer, req.Msg, true)
 		if err != nil {
 			log.Warnf("[p2p]can`t transmit consensus msg to %s, send msg err: %s", peer.GetAddr(), err)
 		}
-	} else {
-		dht := this.server.GetDHT()
-		if dht == nil {
-			log.Warnf("[p2p]can`t transmit consensus msg: no dht object")
-			return
-		}
-		closestList := dht.Resolve(req.Target)
-		if closestList.Len() == 0 {
-			log.Warnf("[p2p]can`t transmit consensus msg:no valid neighbor peer: %d\n", req.Target)
-			return
-		}
-		for _, item := range closestList {
-			id := binary.LittleEndian.Uint64(item.Entry.ID[:])
-			peer := this.server.GetNetWork().GetPeer(id)
-			if peer == nil || !this.server.GetNetWork().IsPeerEstablished(peer) {
-				continue
-			}
-			err := this.server.Send(peer, req.Msg, true)
-			if err != nil {
-				log.Warnf("[p2p]can`t transmit consensus msg to %s, send msg err: %s", peer.GetAddr(), err)
-			}
-		}
+	}else if r := this.server.GetRouting(); r != nil{
+		r.TransmitMsgReq(req.Target, req.Msg)
+	}else {
+		log.Info("[p2p]can`t transmit consensus msg to %s and will be disregarded", peer.GetAddr())
 	}
 }

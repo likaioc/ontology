@@ -26,6 +26,10 @@ import (
 	"github.com/ontio/ontology/p2pserver/net/protocol"
 )
 
+type MessageRouterRegister interface {
+	RegisterMsgHandler(key string, handler MessageHandler)
+}
+
 // MessageHandler defines the unified api for each net message
 type MessageHandler func(data *types.MsgPayload, p2p p2p.P2P, pid *actor.PID, args ...interface{})
 
@@ -60,8 +64,6 @@ func (this *MessageRouter) init(p2p p2p.P2P) {
 	// Register message handler
 	this.RegisterMsgHandler(msgCommon.VERSION_TYPE, VersionHandle)
 	this.RegisterMsgHandler(msgCommon.VERACK_TYPE, VerAckHandle)
-	this.RegisterMsgHandler(msgCommon.GetADDR_TYPE, AddrReqHandle)
-	this.RegisterMsgHandler(msgCommon.ADDR_TYPE, AddrHandle)
 	this.RegisterMsgHandler(msgCommon.PING_TYPE, PingHandle)
 	this.RegisterMsgHandler(msgCommon.PONG_TYPE, PongHandle)
 	this.RegisterMsgHandler(msgCommon.GET_HEADERS_TYPE, HeadersReqHandle)

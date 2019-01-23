@@ -23,7 +23,8 @@ import (
 	"testing"
 
 	"github.com/ontio/ontology/common/log"
-	"github.com/ontio/ontology/p2pserver/dht/types"
+	"github.com/ontio/ontology/p2pserver/common"
+	"github.com/ontio/ontology/p2pserver/net/routing/dht/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,7 +33,7 @@ func init() {
 }
 
 func TestRoutingTable(t *testing.T) {
-	id := types.ConstructID("127.0.0.1", 20332)
+	id := common.ConstructID("127.0.0.1", 20332)
 
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, id)

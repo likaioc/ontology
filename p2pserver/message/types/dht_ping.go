@@ -23,7 +23,7 @@ import (
 
 	"github.com/ontio/ontology/common"
 	pCom "github.com/ontio/ontology/p2pserver/common"
-	"github.com/ontio/ontology/p2pserver/dht/types"
+	"github.com/ontio/ontology/p2pserver/net/routing/dht/types"
 )
 
 type EndPoint struct {
