@@ -31,7 +31,6 @@ import (
 	"github.com/ontio/ontology/p2pserver/message/msg_pack"
 	putils "github.com/ontio/ontology/p2pserver/message/utils"
 	ontNet "github.com/ontio/ontology/p2pserver/net"
-    netRouting "github.com/ontio/ontology/p2pserver/net/routing/interface"
 	"github.com/ontio/ontology/p2pserver/peer"
 )
 

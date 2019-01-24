@@ -29,7 +29,6 @@ import (
 	ontNet "github.com/ontio/ontology/p2pserver/net"
 	"github.com/ontio/ontology/p2pserver/net/routing/dht"
 	"github.com/ontio/ontology/p2pserver/net/routing/general"
-	netRouting "github.com/ontio/ontology/p2pserver/net/routing/interface"
 )
 
 type RoutingFacade interface {
@@ -42,7 +41,7 @@ type RoutingFacade interface {
 
 type routingFacade struct {
 	netL ontNet.NetLayer
-	routingMap map[constants.RoutingModeType]netRouting.Routing
+	routingMap map[constants.RoutingModeType]Routing
 }
 
 func NewRoutingFacade() RoutingFacade {
@@ -86,7 +85,7 @@ func (this* routingFacade) Init(rMode constants.RoutingModeType, netL ontNet.Net
 
 	this.netL = netL
 
-	this.routingMap = make(map[constants.RoutingModeType]netRouting.Routing)
+	this.routingMap = make(map[constants.RoutingModeType]Routing)
 	switch rMode {
 	case constants.P2P_ROUTING_GENERAL:
 		return this.initGeneralRouting(netL, mRouterRegister)
