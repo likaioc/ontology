@@ -21,6 +21,7 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"github.com/ontio/ontology/common/constants"
 	"strconv"
 	"strings"
 	"time"
@@ -157,21 +158,24 @@ func ConsensusHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, 
 			log.Warn(err)
 			return
 		}
-		if consensus.Cons.PeerId == 0 || consensus.Cons.PeerId == p2p.GetID() {
+		if consensus.Cons.DestId == 0 || consensus.Cons.DestId == p2p.GetID() {
 			actor.ConsensusPid.Tell(&consensus.Cons)
 		}
 
 		remotePeer.MarkHashAsSeen(consensus.Cons.Hash())	
 
-		// Relay msg to other remote peers
-		if consensus.Cons.PeerId == 0 {
-			p2p.Xmit(consensus, consensus.Cons.Hash(), true)
-		} else if consensus.Cons.PeerId != p2p.GetID() {
-			msg := &msgLocal.RelayTransmitConsensusMsgReq{
-				Target: consensus.Cons.PeerId,
-				Msg:    consensus,
+		rMode := config.DefConfig.P2PNode.RoutingMode
+		if rMode == constants.P2P_ROUTING_DHT || rMode == constants.P2P_ROUTING_ALL {
+			// Relay msg to other remote peers
+			if consensus.Cons.DestId == 0 {
+				p2p.Xmit(consensus, consensus.Cons.Hash(), true)
+			} else if consensus.Cons.DestId != p2p.GetID() {
+				msg := &msgLocal.RelayTransmitConsensusMsgReq{
+					Target: consensus.Cons.PeerId,
+					Msg:    consensus,
+				}
+				pid.Tell(msg)
 			}
-			pid.Tell(msg)
 		}
 	}
 }

@@ -393,7 +393,8 @@ func (self *Server) sendToPeer(peerIdx uint32, data []byte) error {
 		msg := &p2pmsg.ConsensusPayload{
 			Data:   data,
 			Owner:  self.account.PublicKey,
-			PeerId: p2pid,
+			DestId: p2pid,
+			PeerId: self.NodeId,
 		}
 
 		buf := new(bytes.Buffer)
@@ -422,7 +423,8 @@ func (self *Server) broadcastToAll(data []byte) error {
 	msg := &p2pmsg.ConsensusPayload{
 		Data:   data,
 		Owner:  self.account.PublicKey,
-		PeerId: 0,
+		DestId: 0,
+		PeerId: self.NodeId,
 	}
 
 	buf := new(bytes.Buffer)

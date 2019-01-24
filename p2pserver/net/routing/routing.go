@@ -16,7 +16,7 @@
  * along with The ontology.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package _interface
+package routing
 
 import (
 	putils "github.com/ontio/ontology/p2pserver/message/utils"

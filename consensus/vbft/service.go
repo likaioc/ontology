@@ -108,6 +108,7 @@ type Server struct {
 	completedBlockNum        uint32 // ledger SaveBlockCompleted block num
 	currentBlockNum          uint32
 	LastConfigBlockNum       uint32
+	NodeId                   uint64
 	config                   *vconfig.ChainConfig
 	currentParticipantConfig *BlockParticipantConfig
 
@@ -129,7 +130,7 @@ type Server struct {
 	quitWg     sync.WaitGroup
 }
 
-func NewVbftServer(account *account.Account, txpool, p2p *actor.PID) (*Server, error) {
+func NewVbftServer(account *account.Account, txpool, p2p *actor.PID, nodeId uint64) (*Server, error) {
 	server := &Server{
 		msgHistoryDuration: 64,
 		account:            account,
@@ -137,6 +138,7 @@ func NewVbftServer(account *account.Account, txpool, p2p *actor.PID) (*Server, e
 		p2p:                &actorTypes.P2PActor{P2P: p2p},
 		ledger:             ledger.DefLedger,
 		incrValidator:      increment.NewIncrementValidator(10),
+		NodeId:             nodeId,
 	}
 	server.stateMgr = newStateMgr(server)
 

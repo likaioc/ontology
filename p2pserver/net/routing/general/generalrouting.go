@@ -143,6 +143,6 @@ func (this* generalRouting) GetNbrPeers(peerId uint64)([]uint64, error) {
 	return nil, nil
 }
 
-func NewRouting() netRouting.Routing {
+func NewRouting() *generalRouting {
 	return &generalRouting{}
 }

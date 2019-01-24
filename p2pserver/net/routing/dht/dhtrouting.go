@@ -26,7 +26,6 @@ import (
 	putils "github.com/ontio/ontology/p2pserver/message/utils"
 	ontNet "github.com/ontio/ontology/p2pserver/net"
 	"github.com/ontio/ontology/p2pserver/net/routing/dht/types"
-	netRouting "github.com/ontio/ontology/p2pserver/net/routing/interface"
 )
 
 type dhtRouting struct{
@@ -108,7 +107,7 @@ func (this* dhtRouting) GetNbrPeers(peerId uint64)([]uint64, error) {
 	return nbrPeerIds, nil
 }
 
-func NewRouting(id uint64) netRouting.Routing {
+func NewRouting(id uint64) *dhtRouting{
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, id)
 	var nodeID types.NodeID

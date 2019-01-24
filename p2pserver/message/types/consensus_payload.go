@@ -41,6 +41,7 @@ type ConsensusPayload struct {
 	Owner           keypair.PublicKey
 	Signature       []byte
 	PeerId          uint64
+	DestId          uint64
 	hash            common.Uint256
 }
 
@@ -183,6 +184,8 @@ func (this *ConsensusPayload) serializationUnsigned(sink *common.ZeroCopySink) {
 	sink.WriteUint16(this.BookkeeperIndex)
 	sink.WriteUint32(this.Timestamp)
 	sink.WriteVarBytes(this.Data)
+	sink.WriteUint64(this.PeerId)
+	sink.WriteUint64(this.DestId)
 }
 
 //Serialize message payload
@@ -217,6 +220,15 @@ func (this *ConsensusPayload) SerializeUnsigned(w io.Writer) error {
 
 		return errors.NewDetailErr(err, errors.ErrNetPackFail, fmt.Sprintf("write error. Data:%v", this.Data))
 	}
+	err = serialization.WriteUint64(w, this.PeerId)
+	if err != nil {
+		return errors.NewDetailErr(err, errors.ErrNetPackFail, fmt.Sprintf("write error. PeerId:%v", this.PeerId))
+	}
+	err = serialization.WriteUint64(w, this.DestId)
+	if err != nil {
+		return errors.NewDetailErr(err, errors.ErrNetPackFail, fmt.Sprintf("write error. DestId:%v", this.DestId))
+	}
+
 	return nil
 }
 
@@ -233,6 +245,14 @@ func (this *ConsensusPayload) deserializationUnsigned(source *common.ZeroCopySou
 	}
 	if irregular {
 		return common.ErrIrregularData
+	}
+	this.PeerId, eof = source.NextUint64()
+	if eof {
+		return io.ErrUnexpectedEOF
+	}
+	this.DestId, eof = source.NextUint64()
+	if eof {
+		return io.ErrUnexpectedEOF
 	}
 
 	return nil
@@ -277,6 +297,18 @@ func (this *ConsensusPayload) DeserializeUnsigned(r io.Reader) error {
 	if err != nil {
 
 		return errors.NewDetailErr(err, errors.ErrNetUnPackFail, "read Data error")
+	}
+
+	this.PeerId, err = serialization.ReadUint64(r)
+	if err != nil {
+
+		return errors.NewDetailErr(err, errors.ErrNetUnPackFail, "read PeerId error")
+	}
+
+	this.DestId, err = serialization.ReadUint64(r)
+	if err != nil {
+
+		return errors.NewDetailErr(err, errors.ErrNetUnPackFail, "read DestId error")
 	}
 
 	return nil
