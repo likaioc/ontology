@@ -19,6 +19,8 @@
 package common
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -54,6 +56,42 @@ func (u *Uint256) Deserialize(r io.Reader) error {
 		return errors.New("deserialize Uint256 error")
 	}
 	return nil
+}
+
+func (u *Uint256) Inc() *Uint256 {
+
+	bytesBuf := bytes.NewBuffer(u.ToArray())
+
+	var partOne uint64
+	var partTwo uint64
+	var partThree uint64
+	var partFour uint64
+	binary.Read(bytesBuf, binary.BigEndian, &partFour)
+	binary.Read(bytesBuf, binary.BigEndian, &partThree)
+	binary.Read(bytesBuf, binary.BigEndian, &partTwo)
+	binary.Read(bytesBuf, binary.BigEndian, &partOne)
+	if partOne++; partOne == 0 {
+		if partTwo++; partTwo == 0 {
+			if partThree++; partThree == 0 {
+				if partFour++; partFour == 0 {
+					return u
+				}
+			}
+		}
+	}
+
+	binary.Write(bytesBuf, binary.BigEndian, &partFour)
+	binary.Write(bytesBuf, binary.BigEndian, &partThree)
+	binary.Write(bytesBuf, binary.BigEndian, &partTwo)
+	binary.Write(bytesBuf, binary.BigEndian, &partOne)
+
+	bytesB := bytesBuf.Bytes()
+	rtnData := new(Uint256)
+   	for i := range bytesB {
+		rtnData[i] = bytesB[i]
+	}
+
+	return rtnData
 }
 
 func Uint256ParseFromBytes(f []byte) (Uint256, error) {
