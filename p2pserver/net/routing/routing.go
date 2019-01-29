@@ -19,6 +19,7 @@
 package routing
 
 import (
+	"github.com/ontio/ontology/p2pserver/common"
 	putils "github.com/ontio/ontology/p2pserver/message/utils"
 	ontNet "github.com/ontio/ontology/p2pserver/net"
 )
@@ -29,5 +30,5 @@ type Routing interface {
 	Stop() error
 	SetFallbackNodes(recentPeers map[uint32][]string)
 	GetFeedCh() chan *ontNet.FeedEvent
-	GetNbrPeers(peerId uint64)([]uint64, error)
+	GetNbrPeers(peerId common.P2PNodeID)([]common.P2PNodeID, error)
 }

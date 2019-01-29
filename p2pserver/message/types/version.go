@@ -33,7 +33,7 @@ type VersionPayload struct {
 	HttpInfoPort uint16
 	ConsPort     uint16
 	Cap          [32]byte
-	Nonce        uint64
+	Nonce        common.P2PNodeID
 	StartHeight  uint64
 	Relay        uint8
 	IsConsensus  bool
@@ -52,7 +52,7 @@ func (this *Version) Serialization(sink *comm.ZeroCopySink) error {
 	sink.WriteUint16(this.P.HttpInfoPort)
 	sink.WriteUint16(this.P.ConsPort)
 	sink.WriteBytes(this.P.Cap[:])
-	sink.WriteUint64(this.P.Nonce)
+	sink.WriteString(string(this.P.Nonce))
 	sink.WriteUint64(this.P.StartHeight)
 	sink.WriteUint8(this.P.Relay)
 	sink.WriteBool(this.P.IsConsensus)
@@ -77,7 +77,12 @@ func (this *Version) Deserialization(source *comm.ZeroCopySource) error {
 	buf, eof = source.NextBytes(uint64(len(this.P.Cap[:])))
 	copy(this.P.Cap[:], buf)
 
-	this.P.Nonce, eof = source.NextUint64()
+	nonceString, _, irregular, _ := source.NextString()
+	if irregular {
+		return comm.ErrIrregularData
+	}
+	this.P.Nonce = common.P2PNodeID(nonceString)
+
 	this.P.StartHeight, eof = source.NextUint64()
 	this.P.Relay, eof = source.NextUint8()
 	this.P.IsConsensus, irregular, eof = source.NextBool()

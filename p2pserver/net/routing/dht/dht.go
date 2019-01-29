@@ -464,12 +464,15 @@ func getNodeUDPAddr(node *types.Node) (*net.UDPAddr, error) {
 }
 
 // Resolve searches for a specific node with the given ID.
-func (this *DHT) Resolve(id uint64) types.ClosestList {
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, id)
-	var nodeID types.NodeID
-	copy(nodeID[:], b[:])
+func (this *DHT) Resolve(id common.P2PNodeID) types.ClosestList {
 
+	nodeIDR, err := common.ConvertToRawP2PNodeID(id)
+	if err != nil {
+		log.Errorf("[p2p]%s", err.Error())
+		return nil
+	}
+
+	nodeID := types.NodeID(*nodeIDR)
 	node, _ := this.routingTable.queryNode(nodeID)
 	if node != nil {
 		closestList := make(types.ClosestList, 1)

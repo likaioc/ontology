@@ -34,6 +34,7 @@ const (
 	P2PNODEID_DIFFICULT = 40
 	P2PNODEID_SIZE      = 32
 	P2PNODEID_TIMEOUT   = 60 * time.Second
+	P2PNODEID_BLANK     = ""
 )
 
 type RawP2PNodeID [P2PNODEID_SIZE]byte
@@ -115,10 +116,30 @@ func GenerateRawP2PNodeID()(RawP2PNodeID, keypair.PublicKey, error) {
 }
 
 func ConvertToP2PNodeID(rP2PNodeID RawP2PNodeID) P2PNodeID {
+
 	for i := 0; i < P2PNODEID_SIZE/2; i++ {
 		rP2PNodeID[i], rP2PNodeID[P2PNODEID_SIZE-1-i] = rP2PNodeID[P2PNODEID_SIZE-1-i], rP2PNodeID[i]
 	}
 	return P2PNodeID(hex.EncodeToString(rP2PNodeID[:]))
+}
+
+func ConvertToRawP2PNodeID(p2pId P2PNodeID) (*RawP2PNodeID, error) {
+
+	hexBytes, err := hex.DecodeString(string(p2pId))
+	if err == nil {
+		l := len(hexBytes)
+		if l != P2PNODEID_SIZE {
+			return nil, errors.New("Invalid p2pId")
+		}
+		for i := 0; i < l; i++ {
+			hexBytes[i], hexBytes[l-1-i] = hexBytes[l-1-i], hexBytes[i]
+		}
+
+		rP2PNodeID := new(RawP2PNodeID)
+		copy(rP2PNodeID[:], hexBytes)
+	}
+
+	return nil, err
 }
 
 func GenerateP2PNodeID() (P2PNodeID, keypair.PublicKey, error) {

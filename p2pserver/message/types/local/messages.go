@@ -20,30 +20,31 @@
 
 import (
 	"github.com/ontio/ontology/core/types"
+	"github.com/ontio/ontology/p2pserver/common"
 	ptypes "github.com/ontio/ontology/p2pserver/message/types"
 )
 
 type AppendPeerID struct {
-	ID uint64 // The peer id
+	ID common.P2PNodeID // The peer id
 }
 
 type RemovePeerID struct {
-	ID uint64 // The peer id
+	ID common.P2PNodeID // The peer id
 }
 
 type AppendHeaders struct {
-	FromID  uint64          // The peer id
+	FromID  common.P2PNodeID          // The peer id
 	Headers []*types.Header // Headers to be added to the ledger
 }
 
 type AppendBlock struct {
-	FromID    uint64       // The peer id
-	BlockSize uint32       // Block size
-	Block     *types.Block // Block to be added to the ledger
+	FromID    common.P2PNodeID       // The peer id
+	BlockSize uint32                 // Block size
+	Block     *types.Block           // Block to be added to the ledger
 }
 
 type RelayTransmitConsensusMsgReq struct {
-	Target uint64
+	Target common.P2PNodeID
 	Msg    ptypes.Message
 }
 

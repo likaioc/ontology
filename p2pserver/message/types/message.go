@@ -38,7 +38,7 @@ type Message interface {
 
 //MsgPayload in link channel
 type MsgPayload struct {
-	Id          uint64  //peer ID
+	Id          common.P2PNodeID  //peer ID
 	Addr        string  //link address
 	PayloadSize uint32  //payload size
 	Payload     Message //msg payload

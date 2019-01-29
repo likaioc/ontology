@@ -23,13 +23,16 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+
+	"github.com/ontio/ontology/p2pserver/common"
 )
 
-const NODE_ID_BITS = 64
+const (
+	NODE_ID_BITS = common.P2PNODEID_SIZE
+)
 
 // NodeID is a unique identifier for each node.
-// The node identifier is a marshaled elliptic curve public key.
-type NodeID [NODE_ID_BITS / 8]byte
+type NodeID common.RawP2PNodeID
 
 // Bytes returns a byte slice representation of the NodeID
 func (n NodeID) Bytes() []byte {
@@ -38,7 +41,7 @@ func (n NodeID) Bytes() []byte {
 
 // NodeID prints as a long hexadecimal number.
 func (n NodeID) String() string {
-	return fmt.Sprintf("%x", n[:])
+	return string(common.ConvertToP2PNodeID(common.RawP2PNodeID(n)))
 }
 
 var NilID = NodeID{}

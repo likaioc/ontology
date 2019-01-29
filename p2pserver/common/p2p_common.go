@@ -109,7 +109,7 @@ type PeerAddr struct {
 	IpAddr        [16]byte //ip address
 	Port          uint16   //sync port
 	ConsensusPort uint16   //consensus port
-	ID            uint64   //Unique ID
+	ID            P2PNodeID   //Unique ID
 }
 
 //const channel msg id and type

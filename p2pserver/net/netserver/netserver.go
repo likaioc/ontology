@@ -39,7 +39,7 @@ import (
 )
 
 //NewNetServer return the net object in p2p
-func NewNetServer(id uint64) (p2p.P2P, ontNet.NetLayer) {
+func NewNetServer(id common.P2PNodeID) (p2p.P2P, ontNet.NetLayer) {
 	n := &NetServer{
 		SyncChan: make(chan *types.MsgPayload, common.CHAN_CAPABILITY),
 		ConsChan: make(chan *types.MsgPayload, common.CHAN_CAPABILITY),
@@ -98,7 +98,7 @@ type PeerAddrMap struct {
 }
 
 //init initializes attribute of network server
-func (this *NetServer) init(id uint64) error {
+func (this *NetServer) init(id common.P2PNodeID) error {
 	this.base.SetVersion(common.PROTOCOL_VERSION)
 
 	if config.DefConfig.Consensus.EnableConsensus {
@@ -213,7 +213,7 @@ func (this *NetServer) GetVersion() uint32 {
 }
 
 //GetId return peer`s id
-func (this *NetServer) GetID() uint64 {
+func (this *NetServer) GetID() common.P2PNodeID {
 	return this.base.GetID()
 }
 
@@ -259,7 +259,7 @@ func (this *NetServer) GetRelay() bool {
 }
 
 // GetPeer returns a peer with the peer id
-func (this *NetServer) GetPeer(id uint64) *peer.Peer {
+func (this *NetServer) GetPeer(id common.P2PNodeID) *peer.Peer {
 	return this.Np.GetPeer(id)
 }
 
@@ -284,7 +284,7 @@ func (this *NetServer) AddNbrNode(remotePeer *peer.Peer) {
 }
 
 //DelNbrNode delete nbr peer by id
-func (this *NetServer) DelNbrNode(id uint64) (*peer.Peer, bool) {
+func (this *NetServer) DelNbrNode(id common.P2PNodeID) (*peer.Peer, bool) {
 	return this.Np.DelNbrNode(id)
 }
 
@@ -294,7 +294,7 @@ func (this *NetServer) GetNeighbors() []*peer.Peer {
 }
 
 //NodeEstablished return whether a peer is establish with self according to id
-func (this *NetServer) NodeEstablished(id uint64) bool {
+func (this *NetServer) NodeEstablished(id common.P2PNodeID) bool {
 	return this.Np.NodeEstablished(id)
 }
 

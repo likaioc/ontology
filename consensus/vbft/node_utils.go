@@ -26,6 +26,7 @@ import (
 	"github.com/ontio/ontology/common/log"
 	vconfig "github.com/ontio/ontology/consensus/vbft/config"
 	"github.com/ontio/ontology/core/signature"
+	p2pCom"github.com/ontio/ontology/p2pserver/common"
 	msgpack "github.com/ontio/ontology/p2pserver/message/msg_pack"
 	p2pmsg "github.com/ontio/ontology/p2pserver/message/types"
 )
@@ -423,7 +424,7 @@ func (self *Server) broadcastToAll(data []byte) error {
 	msg := &p2pmsg.ConsensusPayload{
 		Data:   data,
 		Owner:  self.account.PublicKey,
-		DestId: 0,
+		DestId: p2pCom.P2PNODEID_BLANK,
 		PeerId: self.NodeId,
 	}
 

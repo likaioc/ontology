@@ -33,7 +33,7 @@ import (
 
 //Link used to establish
 type Link struct {
-	id        uint64
+	id        common.P2PNodeID
 	addr      string                 // The address of the node
 	conn      net.Conn               // Connect socket with the peer node
 	port      uint16                 // The server port of the node
@@ -50,12 +50,12 @@ func NewLink() *Link {
 }
 
 //SetID set peer id to link
-func (this *Link) SetID(id uint64) {
+func (this *Link) SetID(id common.P2PNodeID) {
 	this.id = id
 }
 
 //GetID return if from peer
-func (this *Link) GetID() uint64 {
+func (this *Link) GetID() common.P2PNodeID {
 	return this.id
 }
 

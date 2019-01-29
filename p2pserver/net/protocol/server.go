@@ -31,7 +31,7 @@ type P2P interface {
 	Start()
 	Halt()
 	Connect(addr string, isConsensus bool) error
-	GetID() uint64
+	GetID() common.P2PNodeID
 	GetVersion() uint32
 	GetSyncPort() uint16
 	GetConsPort() uint16
@@ -44,7 +44,7 @@ type P2P interface {
 	GetNeighborAddrs() []common.PeerAddr
 	GetConnectionCnt() uint32
 	GetNp() *peer.NbrPeers
-	GetPeer(uint64) *peer.Peer
+	GetPeer(common.P2PNodeID) *peer.Peer
 	SetHeight(uint64)
 	IsPeerEstablished(p *peer.Peer) bool
 	Send(p *peer.Peer, msg types.Message, isConsensus bool) error
@@ -61,8 +61,8 @@ type P2P interface {
 	RemovePeerSyncAddress(addr string)
 	RemovePeerConsAddress(addr string)
 	AddNbrNode(*peer.Peer)
-	DelNbrNode(id uint64) (*peer.Peer, bool)
-	NodeEstablished(uint64) bool
+	DelNbrNode(id common.P2PNodeID) (*peer.Peer, bool)
+	NodeEstablished(common.P2PNodeID) bool
 	Xmit(msg types.Message, hash oc.Uint256, isCons bool)
 	SetOwnAddress(addr string)
 	IsOwnAddress(addr string) bool

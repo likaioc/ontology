@@ -55,7 +55,7 @@ type GetIdReq struct {
 
 //response of net module id
 type GetIdRsp struct {
-	Id uint64
+	Id types.P2PNodeID
 }
 
 //get net sync port
@@ -129,6 +129,6 @@ type GetNeighborAddrsRsp struct {
 }
 
 type TransmitConsensusMsgReq struct {
-	Target uint64
+	Target types.P2PNodeID
 	Msg    ptypes.Message
 }

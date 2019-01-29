@@ -36,7 +36,7 @@ import (
 
 // PeerCom provides the basic information of a peer
 type PeerCom struct {
-	id           uint64
+	id           common.P2PNodeID
 	version      uint32
 	services     uint64
 	relay        bool
@@ -47,12 +47,12 @@ type PeerCom struct {
 }
 
 // SetID sets a peer's id
-func (this *PeerCom) SetID(id uint64) {
+func (this *PeerCom) SetID(id common.P2PNodeID) {
 	this.id = id
 }
 
 // GetID returns a peer's id
-func (this *PeerCom) GetID() uint64 {
+func (this *PeerCom) GetID() common.P2PNodeID {
 	return this.id
 }
 
@@ -274,7 +274,7 @@ func (this *Peer) CloseCons() {
 }
 
 //GetID return peer`s id
-func (this *Peer) GetID() uint64 {
+func (this *Peer) GetID() common.P2PNodeID {
 	return this.base.GetID()
 }
 
@@ -378,7 +378,7 @@ func (this *Peer) IsHashContained(hash comm.Uint256) bool {
 
 //UpdateInfo update peer`s information
 func (this *Peer) UpdateInfo(t time.Time, version uint32, services uint64,
-	syncPort uint16, consPort uint16, nonce uint64, relay uint8, height uint64) {
+	syncPort uint16, consPort uint16, nonce common.P2PNodeID, relay uint8, height uint64) {
 
 	this.SyncLink.UpdateRXTime(t)
 	this.base.SetID(nonce)

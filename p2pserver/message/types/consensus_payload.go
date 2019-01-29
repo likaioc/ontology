@@ -29,6 +29,7 @@ import (
 	"github.com/ontio/ontology/common/serialization"
 	"github.com/ontio/ontology/core/signature"
 	"github.com/ontio/ontology/errors"
+	p2pComm "github.com/ontio/ontology/p2pserver/common"
 )
 
 type ConsensusPayload struct {
@@ -40,8 +41,8 @@ type ConsensusPayload struct {
 	Data            []byte
 	Owner           keypair.PublicKey
 	Signature       []byte
-	PeerId          uint64
-	DestId          uint64
+	PeerId          p2pComm.P2PNodeID
+	DestId          p2pComm.P2PNodeID
 	hash            common.Uint256
 }
 
@@ -184,8 +185,8 @@ func (this *ConsensusPayload) serializationUnsigned(sink *common.ZeroCopySink) {
 	sink.WriteUint16(this.BookkeeperIndex)
 	sink.WriteUint32(this.Timestamp)
 	sink.WriteVarBytes(this.Data)
-	sink.WriteUint64(this.PeerId)
-	sink.WriteUint64(this.DestId)
+	sink.WriteString(string(this.PeerId))
+	sink.WriteString(string(this.DestId))
 }
 
 //Serialize message payload
@@ -220,11 +221,11 @@ func (this *ConsensusPayload) SerializeUnsigned(w io.Writer) error {
 
 		return errors.NewDetailErr(err, errors.ErrNetPackFail, fmt.Sprintf("write error. Data:%v", this.Data))
 	}
-	err = serialization.WriteUint64(w, this.PeerId)
+	err = serialization.WriteString(w, string(this.PeerId))
 	if err != nil {
 		return errors.NewDetailErr(err, errors.ErrNetPackFail, fmt.Sprintf("write error. PeerId:%v", this.PeerId))
 	}
-	err = serialization.WriteUint64(w, this.DestId)
+	err = serialization.WriteString(w, string(this.DestId))
 	if err != nil {
 		return errors.NewDetailErr(err, errors.ErrNetPackFail, fmt.Sprintf("write error. DestId:%v", this.DestId))
 	}
@@ -246,14 +247,21 @@ func (this *ConsensusPayload) deserializationUnsigned(source *common.ZeroCopySou
 	if irregular {
 		return common.ErrIrregularData
 	}
-	this.PeerId, eof = source.NextUint64()
+
+	peerIdStr, _, irregular, eof := source.NextString()
 	if eof {
 		return io.ErrUnexpectedEOF
 	}
-	this.DestId, eof = source.NextUint64()
+	if irregular {
+		return common.ErrIrregularData
+	}
+	this.PeerId = p2pComm.P2PNodeID(peerIdStr)
+
+	destIdStr, _, irregular, eof := source.NextString()
 	if eof {
 		return io.ErrUnexpectedEOF
 	}
+	this.DestId = p2pComm.P2PNodeID(destIdStr)
 
 	return nil
 }
@@ -299,16 +307,18 @@ func (this *ConsensusPayload) DeserializeUnsigned(r io.Reader) error {
 		return errors.NewDetailErr(err, errors.ErrNetUnPackFail, "read Data error")
 	}
 
-	this.PeerId, err = serialization.ReadUint64(r)
+	peerIdStr, err := serialization.ReadString(r)
 	if err != nil {
-
 		return errors.NewDetailErr(err, errors.ErrNetUnPackFail, "read PeerId error")
+	}else {
+		this.PeerId = p2pComm.P2PNodeID(peerIdStr)
 	}
 
-	this.DestId, err = serialization.ReadUint64(r)
+	destIdStr, err := serialization.ReadString(r)
 	if err != nil {
-
 		return errors.NewDetailErr(err, errors.ErrNetUnPackFail, "read DestId error")
+	}else {
+		this.DestId = p2pComm.P2PNodeID(destIdStr)
 	}
 
 	return nil

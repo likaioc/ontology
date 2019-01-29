@@ -70,8 +70,7 @@ type ReconnectAddrs struct {
 
 //NewServer return a new p2pserver according to the pubkey
 func NewServer() *P2PServer {
-	id := common.ConstructID("127.0.0.1",
-		config.DefConfig.P2PNode.DHTPort)
+	id, _, _ := common.GenerateP2PNodeID()
 	n, nl := netserver.NewNetServer(id)
 
 	p := &P2PServer{
@@ -200,27 +199,27 @@ func (this *P2PServer) Send(p *peer.Peer, msg msgtypes.Message,
 }
 
 // GetID returns local node id
-func (this *P2PServer) GetID() uint64 {
+func (this *P2PServer) GetID() common.P2PNodeID {
 	return this.network.GetID()
 }
 
 // OnAddNode adds the peer id to the block sync mgr
-func (this *P2PServer) OnAddNode(id uint64) {
+func (this *P2PServer) OnAddNode(id common.P2PNodeID) {
 	this.blockSync.OnAddNode(id)
 }
 
 // OnDelNode removes the peer id from the block sync mgr
-func (this *P2PServer) OnDelNode(id uint64) {
+func (this *P2PServer) OnDelNode(id common.P2PNodeID) {
 	this.blockSync.OnDelNode(id)
 }
 
 // OnHeaderReceive adds the header list from network
-func (this *P2PServer) OnHeaderReceive(fromID uint64, headers []*types.Header) {
+func (this *P2PServer) OnHeaderReceive(fromID common.P2PNodeID, headers []*types.Header) {
 	this.blockSync.OnHeaderReceive(fromID, headers)
 }
 
 // OnBlockReceive adds the block from network
-func (this *P2PServer) OnBlockReceive(fromID uint64, blockSize uint32, block *types.Block) {
+func (this *P2PServer) OnBlockReceive(fromID common.P2PNodeID, blockSize uint32, block *types.Block) {
 	this.blockSync.OnBlockReceive(fromID, blockSize, block)
 }
 
@@ -324,7 +323,7 @@ func (this *P2PServer) reachMinConnection() bool {
 }
 
 //getNode returns the peer with the id
-func (this *P2PServer) getNode(id uint64) *peer.Peer {
+func (this *P2PServer) getNode(id common.P2PNodeID) *peer.Peer {
 	return this.network.GetPeer(id)
 }
 
@@ -333,7 +332,7 @@ func (this *P2PServer) retryInactivePeer() {
 	np := this.network.GetNp()
 	np.Lock()
 	var ip net.IP
-	neighborPeers := make(map[uint64]*peer.Peer)
+	neighborPeers := make(map[common.P2PNodeID]*peer.Peer)
 	for _, p := range np.List {
 		addr, _ := p.GetAddr16()
 		ip = addr[:]

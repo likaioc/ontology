@@ -52,6 +52,7 @@ import (
 	"github.com/ontio/ontology/p2pserver"
 	netreqactor "github.com/ontio/ontology/p2pserver/actor/req"
 	p2pactor "github.com/ontio/ontology/p2pserver/actor/server"
+	p2pCom "github.com/ontio/ontology/p2pserver/common"
 	"github.com/ontio/ontology/txnpool"
 	tc "github.com/ontio/ontology/txnpool/common"
 	"github.com/ontio/ontology/txnpool/proc"
@@ -307,7 +308,7 @@ func initP2PNode(ctx *cli.Context, txpoolSvr *proc.TXPoolServer) (*p2pserver.P2P
 	return p2p, p2pPID, nil
 }
 
-func initConsensus(ctx *cli.Context, p2pPid *actor.PID, txpoolSvr *proc.TXPoolServer, acc *account.Account, nodeId uint64) (consensus.ConsensusService, error) {
+func initConsensus(ctx *cli.Context, p2pPid *actor.PID, txpoolSvr *proc.TXPoolServer, acc *account.Account, nodeId p2pCom.P2PNodeID) (consensus.ConsensusService, error) {
 	if !config.DefConfig.Consensus.EnableConsensus {
 		return nil, nil
 	}

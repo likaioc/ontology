@@ -134,19 +134,19 @@ func GetNodePort() (uint16, error) {
 }
 
 //GetID from netSever actor
-func GetID() (uint64, error) {
+func GetID() (common.P2PNodeID, error) {
 	if netServerPid == nil {
-		return 0, nil
+		return common.P2PNODEID_BLANK, nil
 	}
 	future := netServerPid.RequestFuture(&ac.GetIdReq{}, REQ_TIMEOUT*time.Second)
 	result, err := future.Result()
 	if err != nil {
 		log.Errorf(ERR_ACTOR_COMM, err)
-		return 0, err
+		return common.P2PNODEID_BLANK, err
 	}
 	r, ok := result.(*ac.GetIdRsp)
 	if !ok {
-		return 0, errors.New("fail")
+		return common.P2PNODEID_BLANK, errors.New("fail")
 	}
 	return r.Id, nil
 }

@@ -40,6 +40,7 @@ import (
 	"github.com/ontio/ontology/core/utils"
 	"github.com/ontio/ontology/events"
 	"github.com/ontio/ontology/events/message"
+	p2pCom "github.com/ontio/ontology/p2pserver/common"
 	p2pmsg "github.com/ontio/ontology/p2pserver/message/types"
 	gover "github.com/ontio/ontology/smartcontract/service/native/governance"
 	ninit "github.com/ontio/ontology/smartcontract/service/native/init"
@@ -108,7 +109,7 @@ type Server struct {
 	completedBlockNum        uint32 // ledger SaveBlockCompleted block num
 	currentBlockNum          uint32
 	LastConfigBlockNum       uint32
-	NodeId                   uint64
+	NodeId                   p2pCom.P2PNodeID
 	config                   *vconfig.ChainConfig
 	currentParticipantConfig *BlockParticipantConfig
 
@@ -130,7 +131,7 @@ type Server struct {
 	quitWg     sync.WaitGroup
 }
 
-func NewVbftServer(account *account.Account, txpool, p2p *actor.PID, nodeId uint64) (*Server, error) {
+func NewVbftServer(account *account.Account, txpool, p2p *actor.PID, nodeId p2pCom.P2PNodeID) (*Server, error) {
 	server := &Server{
 		msgHistoryDuration: 64,
 		account:            account,

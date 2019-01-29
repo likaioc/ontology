@@ -24,6 +24,7 @@ import (
 	"github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/common/constants"
 	"github.com/ontio/ontology/common/log"
+	p2pComm"github.com/ontio/ontology/p2pserver/common"
 	ptypes "github.com/ontio/ontology/p2pserver/message/types"
 	putils "github.com/ontio/ontology/p2pserver/message/utils"
 	ontNet "github.com/ontio/ontology/p2pserver/net"
@@ -36,7 +37,7 @@ type RoutingFacade interface {
 	Start() error
 	Stop() error
 	SetFallbackNodes(recentPeers map[uint32][]string)
-	TransmitMsgReq(targetPeerId uint64, msg ptypes.Message) error
+	TransmitMsgReq(targetPeerId p2pComm.P2PNodeID, msg ptypes.Message) error
 }
 
 type routingFacade struct {
@@ -140,7 +141,7 @@ func (this* routingFacade) SetFallbackNodes(recentPeers map[uint32][]string) {
 	}
 }
 
-func (this* routingFacade) TransmitMsgReq(targetPeerId uint64, msg ptypes.Message) error {
+func (this* routingFacade) TransmitMsgReq(targetPeerId p2pComm.P2PNodeID, msg ptypes.Message) error {
 
 	if r, ok := this.routingMap[constants.P2P_ROUTING_DHT]; ok {
 		nbrPeers, _ := r.GetNbrPeers(targetPeerId)

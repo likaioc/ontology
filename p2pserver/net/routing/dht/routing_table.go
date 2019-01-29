@@ -20,9 +20,9 @@ package dht
 
 import (
 	"container/heap"
-	"encoding/binary"
 	"sync"
 
+	"github.com/ontio/ontology/p2pserver/common"
 	ontNet "github.com/ontio/ontology/p2pserver/net"
 	"github.com/ontio/ontology/p2pserver/net/routing/dht/types"
 )
@@ -79,7 +79,7 @@ func (this *routingTable) addNode(node *types.Node, bucketIndex int) bool {
 	defer this.mu.Unlock()
 
 	feedInfo := &ontNet.FeedInfo{
-		ID:binary.LittleEndian.Uint64(node.ID.Bytes()),
+		ID: common.ConvertToP2PNodeID(common.RawP2PNodeID(node.ID)),
 		IP: node.IP,
 		TCPPort: node.TCPPort,
 	}
@@ -138,7 +138,7 @@ func (this *routingTable) removeNode(id types.NodeID) {
 
 	if node != nil && this.feedCh != nil {
 		feedInfo := &ontNet.FeedInfo{
-			ID:binary.LittleEndian.Uint64(node.ID.Bytes()),
+			ID: common.ConvertToP2PNodeID(common.RawP2PNodeID(node.ID)),
 			IP: node.IP,
 			TCPPort: node.TCPPort,
 		}

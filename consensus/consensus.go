@@ -25,6 +25,7 @@ import (
 	"github.com/ontio/ontology/consensus/dbft"
 	"github.com/ontio/ontology/consensus/solo"
 	"github.com/ontio/ontology/consensus/vbft"
+	p2pCom "github.com/ontio/ontology/p2pserver/common"
 )
 
 type ConsensusService interface {
@@ -39,7 +40,7 @@ const (
 	CONSENSUS_VBFT = "vbft"
 )
 
-func NewConsensusService(consensusType string, account *account.Account, txpool *actor.PID, ledger *actor.PID, p2p *actor.PID, nodeId uint64) (ConsensusService, error) {
+func NewConsensusService(consensusType string, account *account.Account, txpool *actor.PID, ledger *actor.PID, p2p *actor.PID, nodeId p2pCom.P2PNodeID) (ConsensusService, error) {
 	if consensusType == "" {
 		consensusType = CONSENSUS_DBFT
 	}

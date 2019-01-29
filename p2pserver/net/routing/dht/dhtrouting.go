@@ -19,8 +19,8 @@
 package dht
 
 import (
-	"encoding/binary"
 	"errors"
+	"github.com/ontio/ontology/p2pserver/common"
 
 	"github.com/ontio/ontology/common/log"
 	putils "github.com/ontio/ontology/p2pserver/message/utils"
@@ -86,7 +86,7 @@ func (this* dhtRouting) GetFeedCh() chan *ontNet.FeedEvent {
 	return this.dht.getFeedCh()
 }
 
-func (this* dhtRouting) GetNbrPeers(peerId uint64)([]uint64, error) {
+func (this* dhtRouting) GetNbrPeers(peerId common.P2PNodeID)([]common.P2PNodeID, error) {
 
 	if this.dht == nil {
 		log.Warnf("[p2p]can`t GetNbrPeers: no dht object")
@@ -98,20 +98,23 @@ func (this* dhtRouting) GetNbrPeers(peerId uint64)([]uint64, error) {
 		return nil, errors.New("[p2p]GetNbrPeers: no valid neighbor peer")
 	}
 
-	nbrPeerIds := make([]uint64, 0)
+	nbrPeerIds := make([]common.P2PNodeID, 0)
 	for _, item := range closestList {
-		id := binary.LittleEndian.Uint64(item.Entry.ID[:])
+		id := common.ConvertToP2PNodeID(common.RawP2PNodeID(item.Entry.ID))
 		nbrPeerIds = append(nbrPeerIds, id)
 	}
 
 	return nbrPeerIds, nil
 }
 
-func NewRouting(id uint64) *dhtRouting{
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, id)
-	var nodeID types.NodeID
-	copy(nodeID[:], b[:])
-	dht := NewDHT(nodeID)
+func NewRouting(id common.P2PNodeID) *dhtRouting{
+
+	nodeIDR, err := common.ConvertToRawP2PNodeID(id)
+	if err != nil {
+		log.Errorf("[p2p]%s", err.Error())
+		return nil
+	}
+
+	dht := NewDHT(types.NodeID(*nodeIDR))
 	return &dhtRouting{dht}
 }

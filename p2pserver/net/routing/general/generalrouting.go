@@ -137,7 +137,7 @@ func (this* generalRouting) GetFeedCh() chan *ontNet.FeedEvent {
 	return nil
 }
 
-func (this* generalRouting) GetNbrPeers(peerId uint64)([]uint64, error) {
+func (this* generalRouting) GetNbrPeers(peerId msgCommon.P2PNodeID)([]msgCommon.P2PNodeID, error) {
 
 	return nil, nil
 }

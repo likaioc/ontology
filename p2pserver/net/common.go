@@ -19,6 +19,7 @@
 package net
 
 import (
+	"github.com/ontio/ontology/p2pserver/common"
 	"github.com/ontio/ontology/p2pserver/message/types"
 	"github.com/ontio/ontology/p2pserver/peer"
 )
@@ -36,17 +37,17 @@ type FeedEvent struct {
 }
 
 type FeedInfo struct {
-	ID      uint64
+	ID      common.P2PNodeID
 	IP      string
 	TCPPort uint16
 }
 
 type NetLayer interface {
 	IsOwnAddress(addr string) bool
-	GetID() uint64
+	GetID() common.P2PNodeID
 	SetFeedCh(chan *FeedEvent)
 	LoopRecvRoutingMsg()
-	GetPeer(uint64) *peer.Peer
+	GetPeer(common.P2PNodeID) *peer.Peer
 	GetNp() *peer.NbrPeers
 	IsPeerEstablished(p *peer.Peer) bool
 	Connect(addr string, isConsensus bool) error

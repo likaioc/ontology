@@ -34,6 +34,7 @@ import (
 	cutils "github.com/ontio/ontology/core/utils"
 	ontErrors "github.com/ontio/ontology/errors"
 	bactor "github.com/ontio/ontology/http/base/actor"
+	p2pCom "github.com/ontio/ontology/p2pserver/common"
 	"github.com/ontio/ontology/smartcontract/event"
 	"github.com/ontio/ontology/smartcontract/service/native/ont"
 	"github.com/ontio/ontology/smartcontract/service/native/utils"
@@ -145,7 +146,7 @@ type BlockInfo struct {
 type NodeInfo struct {
 	NodeState   uint   // node status
 	NodePort    uint16 // The nodes's port
-	ID          uint64 // The nodes's id
+	ID          p2pCom.P2PNodeID // The nodes's id
 	NodeTime    int64
 	NodeVersion uint32   // The network protocol the node used
 	NodeType    uint64   // The services the node supplied
