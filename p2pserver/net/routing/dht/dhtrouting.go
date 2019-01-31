@@ -107,7 +107,7 @@ func (this* dhtRouting) GetNbrPeers(peerId common.P2PNodeID)([]common.P2PNodeID,
 	return nbrPeerIds, nil
 }
 
-func NewRouting(id common.P2PNodeID) *dhtRouting{
+func NewRouting(id common.P2PNodeID, idDF common.P2PNodeIDDynamicFactor) *dhtRouting{
 
 	nodeIDR, err := common.ConvertToRawP2PNodeID(id)
 	if err != nil {
@@ -115,6 +115,6 @@ func NewRouting(id common.P2PNodeID) *dhtRouting{
 		return nil
 	}
 
-	dht := NewDHT(types.NodeID(*nodeIDR))
+	dht := NewDHT(types.NodeID(*nodeIDR), idDF)
 	return &dhtRouting{dht}
 }

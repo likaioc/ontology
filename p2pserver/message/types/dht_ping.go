@@ -35,6 +35,7 @@ type EndPoint struct {
 type DHTPing struct {
 	Version      uint16
 	FromID       types.NodeID
+	FromIDDF     pCom.P2PNodeIDDynamicFactor
 	SrcEndPoint  EndPoint
 	DestEndPoint EndPoint
 }
@@ -44,10 +45,10 @@ func (this *DHTPing) CmdType() string {
 }
 
 //Serialize message
-func (this DHTPing) Serialization(sink *common.ZeroCopySink) error {
+func (this* DHTPing) Serialization(sink *common.ZeroCopySink) error {
 	sink.WriteUint16(this.Version)
 	sink.WriteVarBytes(this.FromID[:])
-
+	sink.WriteVarBytes(this.FromIDDF[:])
 	sink.WriteVarBytes(this.SrcEndPoint.Addr[:])
 	sink.WriteUint16(this.SrcEndPoint.UDPPort)
 	sink.WriteUint16(this.SrcEndPoint.TCPPort)
@@ -77,6 +78,15 @@ func (this *DHTPing) Deserialization(source *common.ZeroCopySource) error {
 		return common.ErrIrregularData
 	}
 	copy(this.FromID[:], buf)
+
+	buf, _, irregular, eof = source.NextVarBytes()
+	if eof {
+		return io.ErrUnexpectedEOF
+	}
+	if irregular {
+		return common.ErrIrregularData
+	}
+	copy(this.FromIDDF[:], buf)
 
 	buf, _, irregular, eof = source.NextVarBytes()
 	if eof {

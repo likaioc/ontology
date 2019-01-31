@@ -20,6 +20,7 @@ package dht
 
 import (
 	"errors"
+	"github.com/ontio/ontology/p2pserver/common"
 	"net"
 	"strings"
 	"sync"
@@ -40,9 +41,16 @@ func (this *DHT) findNodeHandle(from *net.UDPAddr, msg mt.Message) {
 		return
 	}
 
+	isValidNodeId := common.VerifyRawP2PNodeID(common.RawP2PNodeID(findNode.FromID), findNode.FromIDDF)
+	if !isValidNodeId {
+		log.Warnf("[dht]findNodeHandle verify node id failed: from %v, fromID %v, fromIDDF %v",
+			from, findNode.FromID, findNode.FromIDDF)
+		return
+	}
+
 	if node, _ := this.routingTable.queryNode(findNode.FromID); node == nil {
 		// findnode must be after ping/pong, in case of DoS attack
-		log.Debugf("[dht]findNodeHandle: from %v, local doesn't contain the request node %v!",
+		log.Warnf("[dht]findNodeHandle: from %v, local doesn't contain the request node %v!",
 			from, findNode.FromID)
 		return
 	}
@@ -59,6 +67,14 @@ func (this *DHT) neighborsHandle(from *net.UDPAddr, msg mt.Message) {
 		log.Error("[dht]neighbors handle detected error message type!")
 		return
 	}
+
+	isValidNodeId := common.VerifyRawP2PNodeID(common.RawP2PNodeID(neighbors.FromID), neighbors.FromIDDF)
+	if !isValidNodeId {
+		log.Warnf("[dht]neighborsHandle verify node id failed: from %v, fromID %v, fromIDDF %v",
+			from, neighbors.FromID, neighbors.FromIDDF)
+		return
+	}
+
 	if node, _ := this.routingTable.queryNode(neighbors.FromID); node == nil {
 		return
 	}
@@ -70,6 +86,12 @@ func (this *DHT) neighborsHandle(from *net.UDPAddr, msg mt.Message) {
 	for i := 0; i < len(neighbors.Nodes) && i < types.BUCKET_SIZE; i++ {
 		node := &neighbors.Nodes[i]
 		if this.isInBlackList(node.IP) || !this.isInWhiteList(node.IP) {
+			continue
+		}
+		isValidNodeId := common.VerifyRawP2PNodeID(common.RawP2PNodeID(node.ID), node.IDDF)
+		if !isValidNodeId {
+			log.Warnf("[dht]neighborsHandle invalid neighbor node id: from %v, fromID %v, fromIDDF %v",
+				from, node.ID, node.IDDF)
 			continue
 		}
 		if node.ID == this.nodeID {
@@ -132,6 +154,13 @@ func (this *DHT) pingHandle(from *net.UDPAddr, msg mt.Message) {
 		return
 	}
 
+	isValidNodeId := common.VerifyRawP2PNodeID(common.RawP2PNodeID(ping.FromID), ping.FromIDDF)
+	if !isValidNodeId {
+		log.Warnf("[dht]pingHandle verify node id failed: from %v, fromID %v, fromIDDF %v",
+			from, ping.FromID, ping.FromIDDF)
+		return
+	}
+
 	// add the node to routing table
 	var node *types.Node
 	if node, _ = this.routingTable.queryNode(ping.FromID); node == nil {
@@ -163,6 +192,13 @@ func (this *DHT) pongHandle(from *net.UDPAddr, msg mt.Message) {
 	if pong.Version != this.version {
 		log.Errorf("[dht]pongHandle: version is incompatible. local %d remote %d",
 			this.version, pong.Version)
+		return
+	}
+
+	isValidNodeId := common.VerifyRawP2PNodeID(common.RawP2PNodeID(pong.FromID), pong.FromIDDF)
+	if !isValidNodeId {
+		log.Warnf("[dht]pongHandle verify node id failed: from %v, fromID %v, fromIDDF %v",
+			from, pong.FromID, pong.FromIDDF)
 		return
 	}
 
@@ -204,7 +240,7 @@ func (this *DHT) findNode(remotePeer *types.Node, targetID types.NodeID) error {
 	if err != nil {
 		return err
 	}
-	findNodeMsg := msgpack.NewFindNode(this.nodeID, targetID)
+	findNodeMsg := msgpack.NewFindNode(this.nodeID, this.nodeIDDF, targetID)
 	this.send(addr, findNodeMsg)
 	log.Debugf("[dht]findNode to %s", addr.String())
 	return nil
@@ -228,7 +264,7 @@ func (this *DHT) findNodeReply(addr *net.UDPAddr, targetId types.NodeID) error {
 		}
 	}
 
-	neighborsMsg := msgpack.NewNeighbors(this.nodeID, closestList)
+	neighborsMsg := msgpack.NewNeighbors(this.nodeID, this.nodeIDDF, closestList)
 	this.send(addr, neighborsMsg)
 	log.Debugf("[dht]findNodeReply to %s", addr.String())
 
@@ -237,7 +273,7 @@ func (this *DHT) findNodeReply(addr *net.UDPAddr, targetId types.NodeID) error {
 
 // ping the remote node
 func (this *DHT) ping(destAddr *net.UDPAddr) error {
-	pingMsg := msgpack.NewDHTPing(this.nodeID, this.udpPort,
+	pingMsg := msgpack.NewDHTPing(this.nodeID, this.nodeIDDF, this.udpPort,
 		this.tcpPort, this.conn.LocalAddr().(*net.UDPAddr), destAddr, this.version)
 	if pingMsg == nil {
 		return errors.New("[dht] faile to new dht ping")
@@ -249,7 +285,7 @@ func (this *DHT) ping(destAddr *net.UDPAddr) error {
 
 // pong reply remote node when receiving ping
 func (this *DHT) pong(destAddr *net.UDPAddr) error {
-	pongMsg := msgpack.NewDHTPong(this.nodeID, this.udpPort,
+	pongMsg := msgpack.NewDHTPong(this.nodeID, this.nodeIDDF, this.udpPort,
 		this.tcpPort, this.conn.LocalAddr().(*net.UDPAddr), destAddr, this.version)
 	if pongMsg == nil {
 		return errors.New("[dht] faile to new dht pong")

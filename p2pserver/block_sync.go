@@ -587,7 +587,7 @@ func (this *BlockSyncMgr) getBlockCache(blockHeight uint32) (p2pComm.P2PNodeID, 
 	defer this.lock.RUnlock()
 	blockInfo, ok := this.blocksCache[blockHeight]
 	if !ok {
-		return p2pComm.P2PNODEID_BLANK, nil
+		return p2pComm.P2PNodeIDBlank, nil
 	}
 	return blockInfo.nodeID, blockInfo.block
 }
@@ -785,7 +785,7 @@ func (this *BlockSyncMgr) getNextNode(nextBlockHeight uint32) *peer.Peer {
 	for {
 		var nextNodeId p2pComm.P2PNodeID
 		nextNodeIndex, nextNodeId = getNextNodeId(nextNodeIndex, nodelist)
-		if nextNodeId == p2pComm.P2PNODEID_BLANK {
+		if nextNodeId == p2pComm.P2PNodeIDBlank {
 			return nil
 		}
 		_, ok := triedNode[nextNodeId]
@@ -916,7 +916,7 @@ func (this *BlockSyncMgr) pingOutsyncNodes(curHeight uint32) {
 func getNextNodeId(nextNodeIndex int, nodeList []p2pComm.P2PNodeID) (int, p2pComm.P2PNodeID) {
 	num := len(nodeList)
 	if num == 0 {
-		return 0, p2pComm.P2PNODEID_BLANK
+		return 0, p2pComm.P2PNodeIDBlank
 	}
 	if nextNodeIndex >= num {
 		nextNodeIndex = 0

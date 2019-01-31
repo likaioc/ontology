@@ -20,6 +20,7 @@
 package types
 
 import (
+	"github.com/ontio/ontology/p2pserver/common"
 	"net"
 	"time"
 )
@@ -41,8 +42,9 @@ type DHTMessage struct {
 }
 
 type Node struct {
-	ID      NodeID `json:"node_id"`
-	IP      string `json:"IP"`
-	UDPPort uint16 `json:UDPPort`
-	TCPPort uint16 `json:TCPPort`
+	ID      NodeID                        `json:"node_id"`
+	IDDF    common.P2PNodeIDDynamicFactor `json:"nodeid_df"`
+	IP      string                        `json:"IP"`
+	UDPPort uint16                        `json:UDPPort`
+	TCPPort uint16                        `json:TCPPort`
 }

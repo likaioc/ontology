@@ -21,6 +21,8 @@ package types
 import (
 	"io"
 
+	"github.com/ontio/ontology-crypto/keypair"
+
 	"github.com/ontio/ontology/common"
 	pCom "github.com/ontio/ontology/p2pserver/common"
 	"github.com/ontio/ontology/p2pserver/net/routing/dht/types"
@@ -29,6 +31,8 @@ import (
 type DHTPong struct {
 	Version      uint16
 	FromID       types.NodeID
+	FromIDDF     pCom.P2PNodeIDDynamicFactor
+	PubKey       keypair.PublicKey
 	SrcEndPoint  EndPoint
 	DestEndPoint EndPoint
 }
@@ -38,10 +42,10 @@ func (this *DHTPong) CmdType() string {
 }
 
 //Serialize message
-func (this DHTPong) Serialization(sink *common.ZeroCopySink) error {
+func (this* DHTPong) Serialization(sink *common.ZeroCopySink) error {
 	sink.WriteUint16(this.Version)
 	sink.WriteVarBytes(this.FromID[:])
-
+	sink.WriteVarBytes(this.FromIDDF[:])
 	sink.WriteVarBytes(this.SrcEndPoint.Addr[:])
 	sink.WriteUint16(this.SrcEndPoint.UDPPort)
 	sink.WriteUint16(this.SrcEndPoint.TCPPort)
@@ -72,6 +76,15 @@ func (this *DHTPong) Deserialization(source *common.ZeroCopySource) error {
 		return common.ErrIrregularData
 	}
 	copy(this.FromID[:], buf)
+
+	buf, _, irregular, eof = source.NextVarBytes()
+	if eof {
+		return io.ErrUnexpectedEOF
+	}
+	if irregular {
+		return common.ErrIrregularData
+	}
+	copy(this.FromIDDF[:], buf)
 
 	buf, _, irregular, eof = source.NextVarBytes()
 	if eof {

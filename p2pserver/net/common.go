@@ -45,6 +45,7 @@ type FeedInfo struct {
 type NetLayer interface {
 	IsOwnAddress(addr string) bool
 	GetID() common.P2PNodeID
+	GetIDDF() common.P2PNodeIDDynamicFactor
 	SetFeedCh(chan *FeedEvent)
 	LoopRecvRoutingMsg()
 	GetPeer(common.P2PNodeID) *peer.Peer

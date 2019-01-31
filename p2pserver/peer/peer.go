@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/fatih/set"
+
 	comm "github.com/ontio/ontology/common"
 	"github.com/ontio/ontology/common/log"
 	"github.com/ontio/ontology/p2pserver/common"
@@ -37,6 +38,7 @@ import (
 // PeerCom provides the basic information of a peer
 type PeerCom struct {
 	id           common.P2PNodeID
+	idDF         common.P2PNodeIDDynamicFactor
 	version      uint32
 	services     uint64
 	relay        bool
@@ -54,6 +56,16 @@ func (this *PeerCom) SetID(id common.P2PNodeID) {
 // GetID returns a peer's id
 func (this *PeerCom) GetID() common.P2PNodeID {
 	return this.id
+}
+
+//SetPubKey sets a peer's public key
+func (this* PeerCom) SetIDDF(idDF common.P2PNodeIDDynamicFactor) {
+	this.idDF = idDF
+}
+
+//GetPubKey returns a peer's public key
+func (this* PeerCom) GetIDDF() common.P2PNodeIDDynamicFactor {
+	return this.idDF
 }
 
 // SetVersion sets a peer's version

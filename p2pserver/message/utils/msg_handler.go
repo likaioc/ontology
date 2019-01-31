@@ -158,7 +158,7 @@ func ConsensusHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, 
 			log.Warn(err)
 			return
 		}
-		if consensus.Cons.DestId == msgCommon.P2PNODEID_BLANK || consensus.Cons.DestId == p2p.GetID() {
+		if consensus.Cons.DestId == msgCommon.P2PNodeIDBlank || consensus.Cons.DestId == p2p.GetID() {
 			actor.ConsensusPid.Tell(&consensus.Cons)
 		}
 
@@ -167,7 +167,7 @@ func ConsensusHandle(data *msgTypes.MsgPayload, p2p p2p.P2P, pid *evtActor.PID, 
 		rMode := config.DefConfig.P2PNode.RoutingMode
 		if rMode == constants.P2P_ROUTING_DHT || rMode == constants.P2P_ROUTING_ALL {
 			// Relay msg to other remote peers
-			if consensus.Cons.DestId == msgCommon.P2PNODEID_BLANK {
+			if consensus.Cons.DestId == msgCommon.P2PNodeIDBlank {
 				p2p.Xmit(consensus, consensus.Cons.Hash(), true)
 			} else if consensus.Cons.DestId != p2p.GetID() {
 				msg := &msgLocal.RelayTransmitConsensusMsgReq{

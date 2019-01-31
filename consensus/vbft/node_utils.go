@@ -424,7 +424,7 @@ func (self *Server) broadcastToAll(data []byte) error {
 	msg := &p2pmsg.ConsensusPayload{
 		Data:   data,
 		Owner:  self.account.PublicKey,
-		DestId: p2pCom.P2PNODEID_BLANK,
+		DestId: p2pCom.P2PNodeIDBlank,
 		PeerId: self.NodeId,
 	}
 

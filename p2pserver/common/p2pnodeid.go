@@ -19,106 +19,147 @@
 package common
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/hex"
-	"github.com/ontio/ontology-crypto/keypair"
-	"github.com/pkg/errors"
+	"errors"
 	"math/bits"
+	"strconv"
 	"time"
-
-	blake2bhash "github.com/minio/blake2b-simd"
-	"github.com/ontio/ontology/common"
 )
 
 const (
-	P2PNODEID_DIFFICULT = 40
-	P2PNODEID_SIZE      = 32
-	P2PNODEID_TIMEOUT   = 60 * time.Second
-	P2PNODEID_BLANK     = ""
+	P2PNodeIDBlank     = ""
+	P2PNodeIDSize      = 32
+	P2PNodeIDDifficult = 40
+	P2PNodeIDTimeOut   = 60 * time.Second
 )
 
-type RawP2PNodeID [P2PNODEID_SIZE]byte
+type RawP2PNodeID           [P2PNodeIDSize]byte
+type P2PNodeIDDynamicFactor [P2PNodeIDSize]byte
 type P2PNodeID string
 
 type FinalP2PNodeIDInfo struct {
-	Nonce     *common.Uint256
-	Difficult uint64
-	P2PNodeID RawP2PNodeID
-	Err       error
+	P2PNodeID        RawP2PNodeID
+	P2PNodeIDDF      P2PNodeIDDynamicFactor
+	DifficultStatic  uint64
+	DifficultDynamic uint64
+	Err              error
 }
 
-func calcHashDifficult(hashByte RawP2PNodeID) uint64 {
+func calcDifficult(bytes []byte) uint64 {
 
-	for i, b := range hashByte {
+	for i, b := range bytes {
 		if b != 0 {
 			return uint64(i*8 + bits.LeadingZeros8(uint8(b)))
 		}
 	}
-	return uint64(len(hashByte) * 8)
+	return uint64(len(bytes) * 8)
 }
 
-func hashDataWithNonce(data []byte, nonce *common.Uint256) RawP2PNodeID {
+func xor (data1 []byte, data2 []byte)[]byte {
 
-	first := blake2bhash.Sum512(append(data, nonce.ToArray()...))
-	return RawP2PNodeID(sha256.Sum256(first[:]))
+	if len(data1) !=len(data2) {
+		return nil
+	}
+	rData := make([]byte, len(data1))
+	for i:= 0; i < len(data1); i++ {
+		rData[i] = data1[i] ^ data2[i]
+	}
+
+	return rData
 }
 
-//_, pubKey, err := keypair.GenerateKeyPair(keypair.PK_ECDSA, keypair.P256)
-//serialPubKey := keypair.SerializePublicKey(pubKey)
-func generateRawP2PNodeIDSub(data []byte, difficult uint64, startNonce* common.Uint256, stop chan struct{}, nodeIDInfoReceiver chan FinalP2PNodeIDInfo) {
+func GenerateRawNodeIDStatic() ([]byte, uint64, error) {
+
+	rsaPriKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, 0, err
+	}
+	rsaPubKey    := rsaPriKey.PublicKey
+	rsaPubKeyStr := rsaPubKey.N.String() + strconv.Itoa(rsaPubKey.E)
+	rNodeID      := sha256.New().Sum([]byte(rsaPubKeyStr))
+	hashBytes    := sha256.New().Sum(rNodeID)
+	curDifficult := calcDifficult(hashBytes)
+
+	return rNodeID, curDifficult, nil
+}
+
+func GenerateRawNodeIDDynamic(
+						difficult           uint64,
+						rNodeID             []byte,
+						finalP2PNodeIdInfo* FinalP2PNodeIDInfo,
+						stop                chan struct{},
+						nodeIDInfoReceiver  chan FinalP2PNodeIDInfo) {
+
+	for {
+		select {
+		case <- stop:
+			finalP2PNodeIdInfo.Err = errors.New("GenerateRawP2PNodeID timeout")
+			nodeIDInfoReceiver <- *finalP2PNodeIdInfo
+		default:
+			var dynamicFactor [P2PNodeIDSize]byte
+			rand.Read(dynamicFactor[:])
+			dynamicFactorHash := sha256.New().Sum(xor(dynamicFactor[:], rNodeID))
+			curDifficultDynamic := calcDifficult(dynamicFactorHash)
+
+			finalP2PNodeIdInfo.DifficultDynamic = curDifficultDynamic
+			copy(finalP2PNodeIdInfo.P2PNodeIDDF[:], dynamicFactor[:])
+			if curDifficultDynamic >= difficult {
+				finalP2PNodeIdInfo.Err = nil
+				nodeIDInfoReceiver <- *finalP2PNodeIdInfo
+				return
+			}
+		}
+	}
+}
+
+func GenerateRawNodeID(difficult uint64, stop chan struct{}, nodeIDInfoReceiver chan FinalP2PNodeIDInfo){
 
 	var finalP2PNodeIdInfo FinalP2PNodeIDInfo
-	for nonce := startNonce; ; nonce.Inc() {
+	for {
 		select {
 		case <- stop:
 			finalP2PNodeIdInfo.Err = errors.New("GenerateRawP2PNodeID timeout")
 			nodeIDInfoReceiver <- finalP2PNodeIdInfo
 			return
 		default:
-			rP2PNodeId := hashDataWithNonce(data, nonce)
-			currentDifficult := calcHashDifficult(rP2PNodeId)
-			if calcHashDifficult(rP2PNodeId) >= difficult {
-				finalP2PNodeIdInfo.Nonce     = nonce
-				finalP2PNodeIdInfo.Difficult = currentDifficult
-				finalP2PNodeIdInfo.P2PNodeID = rP2PNodeId
-				finalP2PNodeIdInfo.Err       = nil
+			rNodeID, curDifficultStatic, err := GenerateRawNodeIDStatic()
+			if err != nil {
+				finalP2PNodeIdInfo.Err = err
 				nodeIDInfoReceiver <- finalP2PNodeIdInfo
 				return
 			}
-
-			if currentDifficult > finalP2PNodeIdInfo.Difficult {
-				finalP2PNodeIdInfo.Nonce     = nonce
-				finalP2PNodeIdInfo.Difficult = currentDifficult
-				finalP2PNodeIdInfo.P2PNodeID = rP2PNodeId
+			finalP2PNodeIdInfo.DifficultStatic = curDifficultStatic
+			copy(finalP2PNodeIdInfo.P2PNodeID[:], rNodeID[:])
+			if curDifficultStatic >= difficult {
+				GenerateRawNodeIDDynamic(difficult, rNodeID, &finalP2PNodeIdInfo, stop, nodeIDInfoReceiver)
 			}
 		}
 	}
 }
 
-func GenerateRawP2PNodeID()(RawP2PNodeID, keypair.PublicKey, error) {
+func GenerateRawP2PNodeID()(RawP2PNodeID, P2PNodeIDDynamicFactor, error) {
 
-	stop := make(chan struct{}, 1)
+	stop               := make(chan struct{}, 1)
 	nodeIDInfoReceiver := make(chan FinalP2PNodeIDInfo, 1)
-	_, pubKey, err := keypair.GenerateKeyPair(keypair.PK_ECDSA, keypair.P256)
-	if err == nil {
-		serialPubKey := keypair.SerializePublicKey(pubKey)
-		go generateRawP2PNodeIDSub(serialPubKey, P2PNODEID_DIFFICULT, &common.Uint256{}, stop, nodeIDInfoReceiver)
-		time.Sleep(P2PNODEID_TIMEOUT)
-		stop <- struct{}{}
 
-		p2pNodeInfoID, ok := <- nodeIDInfoReceiver
-		if ok {
-			return p2pNodeInfoID.P2PNodeID, pubKey, nil
-		}
+	go GenerateRawNodeID(P2PNodeIDDifficult, stop, nodeIDInfoReceiver)
+	time.Sleep(P2PNodeIDTimeOut)
+	stop <- struct{}{}
+	p2pNodeInfoID, ok := <- nodeIDInfoReceiver
+	if ok {
+		return p2pNodeInfoID.P2PNodeID, p2pNodeInfoID.P2PNodeIDDF, nil
 	}
 
-	return RawP2PNodeID{}, pubKey, err
+	return RawP2PNodeID{}, P2PNodeIDDynamicFactor{}, errors.New("can't generate RawP2PNodeID")
 }
 
 func ConvertToP2PNodeID(rP2PNodeID RawP2PNodeID) P2PNodeID {
 
-	for i := 0; i < P2PNODEID_SIZE/2; i++ {
-		rP2PNodeID[i], rP2PNodeID[P2PNODEID_SIZE-1-i] = rP2PNodeID[P2PNODEID_SIZE-1-i], rP2PNodeID[i]
+	for i := 0; i < P2PNodeIDSize/2; i++ {
+		rP2PNodeID[i], rP2PNodeID[P2PNodeIDSize-1-i] = rP2PNodeID[P2PNodeIDSize-1-i], rP2PNodeID[i]
 	}
 	return P2PNodeID(hex.EncodeToString(rP2PNodeID[:]))
 }
@@ -128,8 +169,8 @@ func ConvertToRawP2PNodeID(p2pId P2PNodeID) (*RawP2PNodeID, error) {
 	hexBytes, err := hex.DecodeString(string(p2pId))
 	if err == nil {
 		l := len(hexBytes)
-		if l != P2PNODEID_SIZE {
-			return nil, errors.New("Invalid p2pId")
+		if l != P2PNodeIDSize {
+			return nil, errors.New("invalid p2pId")
 		}
 		for i := 0; i < l; i++ {
 			hexBytes[i], hexBytes[l-1-i] = hexBytes[l-1-i], hexBytes[i]
@@ -142,14 +183,24 @@ func ConvertToRawP2PNodeID(p2pId P2PNodeID) (*RawP2PNodeID, error) {
 	return nil, err
 }
 
-func GenerateP2PNodeID() (P2PNodeID, keypair.PublicKey, error) {
+func GenerateP2PNodeID() (P2PNodeID, P2PNodeIDDynamicFactor, error) {
 
-	rawP2PNodeID, pubKey, err := GenerateRawP2PNodeID()
+	rawP2PNodeID, rawP2PNodeIDDF, err := GenerateRawP2PNodeID()
 	if err == nil {
-		return ConvertToP2PNodeID(rawP2PNodeID), pubKey, nil
+		return ConvertToP2PNodeID(rawP2PNodeID), rawP2PNodeIDDF, nil
 	}
 
-	return "", pubKey, err
+	return P2PNodeIDBlank, P2PNodeIDDynamicFactor{}, err
 }
 
+func VerifyRawP2PNodeID(rNodeID RawP2PNodeID, dfP2PNodeID P2PNodeIDDynamicFactor) bool {
+
+	dfHash             := sha256.New().Sum(xor(dfP2PNodeID[:], rNodeID[:]))
+	curDifficultDynamic := calcDifficult(dfHash)
+	if curDifficultDynamic >= P2PNodeIDDifficult {
+		return true
+	}else {
+		return false
+	}
+}
 

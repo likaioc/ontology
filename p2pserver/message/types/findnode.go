@@ -28,6 +28,7 @@ import (
 
 type FindNode struct {
 	FromID   types.NodeID
+	FromIDDF pCom.P2PNodeIDDynamicFactor
 	TargetID types.NodeID
 }
 
@@ -36,8 +37,9 @@ func (this *FindNode) CmdType() string {
 }
 
 //Serialize message payload
-func (this FindNode) Serialization(sink *common.ZeroCopySink) error {
+func (this* FindNode) Serialization(sink *common.ZeroCopySink) error {
 	sink.WriteVarBytes(this.FromID[:])
+	sink.WriteVarBytes(this.FromIDDF[:])
 	sink.WriteVarBytes(this.TargetID[:])
 	return nil
 }
@@ -57,6 +59,15 @@ func (this *FindNode) Deserialization(source *common.ZeroCopySource) error {
 		return common.ErrIrregularData
 	}
 	copy(this.FromID[:], buf)
+
+	buf, _, irregular, eof = source.NextVarBytes()
+	if eof {
+		return io.ErrUnexpectedEOF
+	}
+	if irregular {
+		return common.ErrIrregularData
+	}
+	copy(this.FromIDDF[:], buf)
 
 	buf, _, irregular, eof = source.NextVarBytes()
 	if eof {

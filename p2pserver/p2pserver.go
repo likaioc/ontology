@@ -70,8 +70,11 @@ type ReconnectAddrs struct {
 
 //NewServer return a new p2pserver according to the pubkey
 func NewServer() *P2PServer {
-	id, _, _ := common.GenerateP2PNodeID()
-	n, nl := netserver.NewNetServer(id)
+	id, idDF, err := common.GenerateP2PNodeID()
+	if err != nil {
+
+	}
+	n, nl := netserver.NewNetServer(id, idDF)
 
 	p := &P2PServer{
 		network: n,

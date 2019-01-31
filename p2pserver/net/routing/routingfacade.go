@@ -60,7 +60,7 @@ func (this* routingFacade) initGeneralRouting(netL ontNet.NetLayer, mRouterRegis
 
 func (this* routingFacade) initDHTRouting(netL ontNet.NetLayer, mRouterRegister putils.MessageRouterRegister) error {
 
-	dhtRouting := dht.NewRouting(this.netL.GetID())
+	dhtRouting := dht.NewRouting(this.netL.GetID(), this.netL.GetIDDF())
 	err := dhtRouting.Init(netL, mRouterRegister)
 	if err != nil {
 		log.Error("[p2p]Init DHT routing error")

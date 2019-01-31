@@ -39,7 +39,7 @@ import (
 )
 
 //NewNetServer return the net object in p2p
-func NewNetServer(id common.P2PNodeID) (p2p.P2P, ontNet.NetLayer) {
+func NewNetServer(id common.P2PNodeID, idDF common.P2PNodeIDDynamicFactor) (p2p.P2P, ontNet.NetLayer) {
 	n := &NetServer{
 		SyncChan: make(chan *types.MsgPayload, common.CHAN_CAPABILITY),
 		ConsChan: make(chan *types.MsgPayload, common.CHAN_CAPABILITY),
@@ -50,7 +50,7 @@ func NewNetServer(id common.P2PNodeID) (p2p.P2P, ontNet.NetLayer) {
 
 	n.stopLoop = make(chan struct{}, 1)
 
-	n.init(id)
+	n.init(id, idDF)
 	return n, n
 }
 
@@ -98,7 +98,7 @@ type PeerAddrMap struct {
 }
 
 //init initializes attribute of network server
-func (this *NetServer) init(id common.P2PNodeID) error {
+func (this *NetServer) init(id common.P2PNodeID, idDF common.P2PNodeIDDynamicFactor) error {
 	this.base.SetVersion(common.PROTOCOL_VERSION)
 
 	if config.DefConfig.Consensus.EnableConsensus {
@@ -131,6 +131,7 @@ func (this *NetServer) init(id common.P2PNodeID) error {
 	id := rand.Uint64()*/
 
 	this.base.SetID(id)
+	this.base.SetIDDF(idDF)
 
 	log.Infof("[p2p]init peer ID to %d", this.base.GetID())
 	this.Np = &peer.NbrPeers{}
@@ -215,6 +216,11 @@ func (this *NetServer) GetVersion() uint32 {
 //GetId return peer`s id
 func (this *NetServer) GetID() common.P2PNodeID {
 	return this.base.GetID()
+}
+
+//GetPubKey return peer's public key
+func (this* NetServer) GetIDDF() common.P2PNodeIDDynamicFactor {
+	return this.base.GetIDDF()
 }
 
 // SetHeight sets the local's height

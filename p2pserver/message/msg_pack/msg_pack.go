@@ -209,11 +209,12 @@ func NewConsensusDataReq(hash common.Uint256) mt.Message {
 }
 
 //DHT ping message packet
-func NewDHTPing(nodeID types.NodeID, udpPort, tcpPort uint16, srcAddr *net.UDPAddr,
+func NewDHTPing(nodeID types.NodeID, nodeIDDF msgCommon.P2PNodeIDDynamicFactor, udpPort, tcpPort uint16, srcAddr *net.UDPAddr,
 	destAddr *net.UDPAddr, version uint16) mt.Message {
 	ping := new(mt.DHTPing)
 	ping.Version = version
 	copy(ping.FromID[:], nodeID[:])
+	copy(ping.FromIDDF[:], nodeIDDF[:])
 
 	ping.SrcEndPoint.UDPPort = udpPort
 	ping.SrcEndPoint.TCPPort = tcpPort
@@ -238,11 +239,12 @@ func NewDHTPing(nodeID types.NodeID, udpPort, tcpPort uint16, srcAddr *net.UDPAd
 }
 
 //DHT pong message packet
-func NewDHTPong(nodeID types.NodeID, udpPort, tcpPort uint16, srcAddr  *net.UDPAddr,
+func NewDHTPong(nodeID types.NodeID, nodeIDDF msgCommon.P2PNodeIDDynamicFactor, udpPort, tcpPort uint16, srcAddr  *net.UDPAddr,
 	destAddr *net.UDPAddr, version uint16) mt.Message {
 	pong := new(mt.DHTPong)
 	pong.Version = version
 	copy(pong.FromID[:], nodeID[:])
+	copy(pong.FromIDDF[:], nodeIDDF[:])
 	pong.SrcEndPoint.UDPPort = udpPort
 	pong.SrcEndPoint.TCPPort = tcpPort
 
@@ -266,9 +268,10 @@ func NewDHTPong(nodeID types.NodeID, udpPort, tcpPort uint16, srcAddr  *net.UDPA
 }
 
 //DHT findNode message packet
-func NewFindNode(nodeID types.NodeID, targetID types.NodeID) mt.Message {
+func NewFindNode(nodeID types.NodeID, nodeIDDF msgCommon.P2PNodeIDDynamicFactor, targetID types.NodeID) mt.Message {
 	findNode := &mt.FindNode{
 		FromID:   nodeID,
+		FromIDDF: nodeIDDF,
 		TargetID: targetID,
 	}
 
@@ -276,10 +279,11 @@ func NewFindNode(nodeID types.NodeID, targetID types.NodeID) mt.Message {
 }
 
 //DHT neighbors message packet
-func NewNeighbors(nodeID types.NodeID, cl types.ClosestList) mt.Message {
+func NewNeighbors(nodeID types.NodeID, nodeIDDF msgCommon.P2PNodeIDDynamicFactor, cl types.ClosestList) mt.Message {
 	neighbors := &mt.Neighbors{
-		FromID: nodeID,
-		Nodes:  make([]types.Node, 0, cl.Len()),
+		FromID:   nodeID,
+		FromIDDF: nodeIDDF,
+		Nodes:    make([]types.Node, 0, cl.Len()),
 	}
 	for _, item := range cl {
 		neighbors.Nodes = append(neighbors.Nodes, *item.Entry)

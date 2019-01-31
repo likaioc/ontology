@@ -27,8 +27,9 @@ import (
 )
 
 type Neighbors struct {
-	FromID types.NodeID
-	Nodes  []types.Node
+	FromID   types.NodeID
+	FromIDDF pCom.P2PNodeIDDynamicFactor
+	Nodes    []types.Node
 }
 
 func (this *Neighbors) CmdType() string {
@@ -36,12 +37,14 @@ func (this *Neighbors) CmdType() string {
 }
 
 //Serialize message payload
-func (this Neighbors) Serialization(sink *common.ZeroCopySink) error {
+func (this* Neighbors) Serialization(sink *common.ZeroCopySink) error {
 	sink.WriteVarBytes(this.FromID[:])
+	sink.WriteVarBytes(this.FromIDDF[:])
 	sink.WriteUint32(uint32(len(this.Nodes)))
 
 	for _, node := range this.Nodes {
 		sink.WriteVarBytes(node.ID[:])
+		sink.WriteVarBytes(node.IDDF[:])
 		sink.WriteString(node.IP)
 		sink.WriteUint16(node.UDPPort)
 		sink.WriteUint16(node.TCPPort)
@@ -66,6 +69,15 @@ func (this *Neighbors) Deserialization(source *common.ZeroCopySource) error {
 	}
 	copy(this.FromID[:], buf)
 
+	buf, _, irregular, eof = source.NextVarBytes()
+	if eof {
+		return io.ErrUnexpectedEOF
+	}
+	if irregular {
+		return common.ErrIrregularData
+	}
+	copy(this.FromIDDF[:], buf)
+
 	num, eof := source.NextUint32()
 	if eof {
 		return io.ErrUnexpectedEOF
@@ -82,6 +94,15 @@ func (this *Neighbors) Deserialization(source *common.ZeroCopySource) error {
 			return common.ErrIrregularData
 		}
 		copy(node.ID[:], buf)
+
+		buf, _, irregular, eof = source.NextVarBytes()
+		if eof {
+			return io.ErrUnexpectedEOF
+		}
+		if irregular {
+			return common.ErrIrregularData
+		}
+		copy(node.IDDF[:], buf)
 
 		node.IP, _, irregular, eof = source.NextString()
 		if eof {
