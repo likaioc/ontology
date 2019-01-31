@@ -23,7 +23,11 @@ import (
 
 	"github.com/ontio/ontology-eventbus/actor"
 	"github.com/ontio/ontology/common/log"
+	"github.com/ontio/ontology/events"
+	"github.com/ontio/ontology/events/message"
 	"github.com/ontio/ontology/p2pserver"
+	"github.com/ontio/ontology/p2pserver/common"
+	"github.com/ontio/ontology/p2pserver/message/msg_pack"
 	msgLocal "github.com/ontio/ontology/p2pserver/message/types/local"
 )
 
@@ -44,6 +48,12 @@ func NewP2PActor(p2pServer *p2pserver.P2PServer) *P2PActor {
 func (this *P2PActor) Start() (*actor.PID, error) {
 	this.props = actor.FromProducer(func() actor.Actor { return this })
 	p2pPid, err := actor.SpawnNamed(this.props, "net_server")
+
+	if this.server.GetNetWork().GetServices() == common.VERIFY_NODE {
+		sub := events.NewActorSubscriber(p2pPid)
+		sub.Subscribe(message.TOPIC_SAVE_BLOCK_COMPLETE)
+	}
+
 	return p2pPid, err
 }
 
@@ -86,6 +96,8 @@ func (this *P2PActor) Receive(ctx actor.Context) {
 		this.handleGetNodeTypeReq(ctx, msg)
 	case *TransmitConsensusMsgReq:
 		this.handleTransmitConsensusMsgReq(ctx, msg)
+	case *message.SaveBlockCompleteMsg:
+		this.handleSaveBlockCompleteMsg(ctx, msg)
 	case *msgLocal.AppendPeerID:
 		this.server.OnAddNode(msg.ID)
 	case *msgLocal.RemovePeerID:
@@ -248,5 +260,19 @@ func (this *P2PActor) handleTransmitConsensusMsgReq(ctx actor.Context, req *Tran
 		r.TransmitMsgReq(req.Target, req.Msg)
 	}else {
 		log.Info("[p2p]can`t transmit consensus msg to %s and will be disregarded", peer.GetAddr())
+	}
+}
+
+func (this *P2PActor) handleSaveBlockCompleteMsg(ctx actor.Context, req *message.SaveBlockCompleteMsg) {
+
+	sender := ctx.Sender()
+	log.Debugf("[p2p]P2P actor receives block complete event from %v", sender)
+
+	neighborPeers := this.server.GetNetWork().GetNeighbors()
+	for _, p := range neighborPeers {
+		if p.GetSyncState() == common.ESTABLISH {
+			ping := msgpack.NewPingMsg(uint64(req.Block.Header.Height))
+			go this.server.GetNetWork().Send(p, ping, false)
+		}
 	}
 }
