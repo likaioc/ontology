@@ -93,7 +93,7 @@ func TestVersionHandle(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Construct a version packet
-	buf     := msgpack.NewVersion(network,false, 12345)
+	buf := msgpack.NewVersion(network,false, 12345)
 	version := buf.(*types.Version)
 	version.P.Nonce = testID
 
@@ -104,7 +104,7 @@ func TestVersionHandle(t *testing.T) {
 	}
 
 	// Invoke VersionHandle to handle the msg
-	VersionHandle(msg, network,nil)
+	VersionHandle(msg, network, nil)
 
 	// Get the remote peer from the neighbor peers by peer id
 	tempPeer := network.GetPeer(testID)
@@ -451,7 +451,7 @@ func TestTransactionHandle(t *testing.T) {
 // TestAddrHandle tests Function AddrHandle handling a neighbor address response message
 func TestAddrHandle(t *testing.T) {
 	nodeAddrs := []msgCommon.PeerAddr{}
-	buf:= msgpack.NewAddrs(nodeAddrs)
+	buf := msgpack.NewAddrs(nodeAddrs)
 	msg := &types.MsgPayload{
 		Id:      0,
 		Addr:    "127.0.0.1:50010",
@@ -493,7 +493,7 @@ func TestDataReqHandle(t *testing.T) {
 	hex, _ := hex.DecodeString(tempStr)
 	var txHash common.Uint256
 	txHash.Deserialize(bytes.NewReader(hex))
-	buf  = msgpack.NewTxnDataReq(txHash)
+	buf = msgpack.NewTxnDataReq(txHash)
 	msg = &types.MsgPayload{
 		Id:      testID,
 		Addr:    "127.0.0.1:50010",
