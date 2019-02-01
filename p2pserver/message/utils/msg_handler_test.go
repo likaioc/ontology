@@ -93,7 +93,7 @@ func TestVersionHandle(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Construct a version packet
-	buf := msgpack.NewVersion(network,false, 12345)
+	buf := msgpack.NewVersion(network, false, 12345)
 	version := buf.(*types.Version)
 	version.P.Nonce = testID
 
