@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	NODE_ID_BITS = common.P2PNodeIDSize
+	NODE_ID_BITS = common.P2PNodeIDSize * 8
 )
 
 // NodeID is a unique identifier for each node.
