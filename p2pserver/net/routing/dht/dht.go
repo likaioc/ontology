@@ -42,25 +42,30 @@ const (
 	DHT_WHITE_LIST_FILE = "./dht_white_list"
 )
 
+type pathClosestList []*types.Node
+
 // DHT manage the DHT/Kad protocol resource, mainly including
 // route table, the channel to netserver, the udp message queue
 type DHT struct {
-	mu             sync.Mutex
-	version        uint16                        // Local DHT version
-	nodeID         types.NodeID                  // Local DHT id
-	nodeIDDF       common.P2PNodeIDDynamicFactor // Local DHT id dynamic factor
-	routingTable   *routingTable                 // The k buckets
-	udpPort        uint16                        // Local UDP port
-	tcpPort        uint16                        // Local TCP port
-	conn           *net.UDPConn                  // UDP listen fd
-	messagePool    *types.DHTMessagePool         // Manage the request msgs(ping, findNode)
-	recvCh         chan *types.DHTMessage       // The queue to receive msg from UDP network
-	bootstrapNodes map[types.NodeID]*types.Node // Hold inital nodes from configure and peer file to contact
-	feedCh         chan *ontNet.FeedEvent       // Notify netserver of add/del a remote peer
-	stopCh         chan struct{}               // Stop DHT module
+	mu              sync.Mutex
+	version         uint16                        // Local DHT version
+	nodeID          types.NodeID                  // Local DHT id
+	nodeIDDF        common.P2PNodeIDDynamicFactor // Local DHT id dynamic factor
+	routingTable    *routingTable                 // The k buckets
+	udpPort         uint16                        // Local UDP port
+	tcpPort         uint16                        // Local TCP port
+	conn            *net.UDPConn                  // UDP listen fd
+	messagePool     *types.DHTMessagePool         // Manage the request msgs(ping, findNode)
+	recvCh          chan *types.DHTMessage       // The queue to receive msg from UDP network
+	bootstrapNodes  map[types.NodeID]*types.Node // Hold inital nodes from configure and peer file to contact
+	feedCh          chan *ontNet.FeedEvent       // Notify netserver of add/del a remote peer
+	stopCh          chan struct{}               // Stop DHT module
 
-	whiteList []string
-	blackList []string
+	whiteList       []string
+	blackList       []string
+
+	disjointPathNum int                       // The disjoint path number for disjoint path query
+
 }
 
 // NewDHT returns an instance of DHT with the given id
@@ -244,6 +249,99 @@ func (this *DHT) refreshRoutingTable() {
 	this.lookup(targetID)
 }
 
+func (this *DHT) querySingleDisjointPathSub(disjointPath []*types.Node, targetID types.NodeID, queryNum int, sentQuery *int) {
+	for _, node := range disjointPath {
+		if *sentQuery > queryNum {
+			break
+		}
+		*sentQuery++
+		go func() {
+			this.findNode(node, targetID)
+			this.messagePool.AddRequest(node, types.DHT_FIND_NODE_REQUEST, nil, nil)
+		}()
+	}
+}
+
+func (this *DHT) querySingleDisjointPath(disjointPath []*types.Node, targetID types.NodeID, queryNum int, visited map[types.NodeID]bool) pathClosestList {
+	sentQuery := 0
+	pathClosestList := make(pathClosestList, 0)
+
+	this.querySingleDisjointPathSub(disjointPath, targetID, queryNum, &sentQuery)
+	disjointPath = disjointPath[:0]
+
+	for sentQuery > 0 {
+		responseCh := this.messagePool.GetResultChan()
+		entries := <-responseCh
+		sentQuery--
+
+		for _, node := range entries {
+			if visited[node.ID] == true || node.ID == this.nodeID {
+				continue
+			}
+			visited[node.ID] = true
+			pathClosestList = append(pathClosestList, node)
+			disjointPath = append(disjointPath, node)
+		}
+
+		this.querySingleDisjointPathSub(disjointPath, targetID, queryNum, &sentQuery)
+	}
+
+	return pathClosestList
+}
+
+
+func (this *DHT) receiveAllDisjointPathResults(pathNum int, targetID types.NodeID, recvChan <-chan pathClosestList) types.ClosestList {
+	rtnClosestList := make(types.ClosestList, 0)
+	for i := 0; i < pathNum; i++ {
+		pathClosestListReceived := <- recvChan
+		for _, node := range pathClosestListReceived {
+			push(node, targetID, rtnClosestList, types.BUCKET_SIZE)
+		}
+	}
+
+	return rtnClosestList
+}
+
+
+func (this* DHT) disjointParallelQuery(qSrcNodes types.ClosestList, targetID types.NodeID) types.ClosestList {
+
+	if len(qSrcNodes) == 0 {
+		return nil
+	}
+
+	visited := make(map[types.NodeID]bool)
+
+	pathNum := this.disjointPathNum
+	if len(qSrcNodes) < this.disjointPathNum {
+		pathNum = len(qSrcNodes)
+	}
+
+	var pathIndex int
+	disjointPaths := make([][]*types.Node, pathNum)
+	for i, item := range qSrcNodes {
+		pathIndex = i%pathNum
+		if item.Entry.ID != this.nodeID {
+			disjointPaths[pathIndex] = append(disjointPaths[pathIndex], item.Entry)
+			visited[item.Entry.ID] = true
+		}
+	}
+
+	actualPathNum := 0
+	disjointPathResultChan := make(chan pathClosestList, len(disjointPaths))
+	for _, disjointPath := range disjointPaths {
+		if len(disjointPath) == 0 {
+			continue
+		}
+		go func (disjointPath []*types.Node) {
+			rtnPath := this.querySingleDisjointPath(disjointPath, targetID, types.FACTOR, visited)
+			disjointPathResultChan <- rtnPath
+
+		}(disjointPath)
+	}
+
+	return this.receiveAllDisjointPathResults(actualPathNum, targetID, disjointPathResultChan)
+}
+
 // lookup executes a network search for nodes closest to the given
 // target and setup k bucket
 func (this *DHT) lookup(targetID types.NodeID) types.ClosestList {
@@ -263,34 +361,7 @@ func (this *DHT) lookup(targetID types.NodeID) types.ClosestList {
 		return nil
 	}
 
-	visited := make(map[types.NodeID]bool)
-	knownNode := make(map[types.NodeID]bool)
-	pendingQueries := 0
-
-	visited[this.nodeID] = true
-
-	for {
-		for i := 0; i < closestList.Len() && pendingQueries < types.FACTOR; i++ {
-			item := closestList[i]
-			if visited[item.Entry.ID] == true {
-				continue
-			}
-			visited[item.Entry.ID] = true
-			pendingQueries++
-			go func() {
-				this.findNode(item.Entry, targetID)
-				this.messagePool.AddRequest(item.Entry, types.DHT_FIND_NODE_REQUEST, nil, nil)
-			}()
-		}
-
-		if pendingQueries == 0 {
-			break
-		}
-
-		this.waitAndHandleResponse(knownNode, closestList, targetID)
-		pendingQueries--
-	}
-	return closestList
+	return this.disjointParallelQuery(closestList, targetID)
 }
 
 // waitAndHandleResponse waits for the result
