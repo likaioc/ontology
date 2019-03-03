@@ -231,8 +231,14 @@ func (this *DHT) loop() {
 		case <-this.stopCh:
 			refresh.Stop()
 			return
+		default:
+		}
+
+		//to make sure that timer will be executed when timer and recvCh is triggered meanwhile
+		select {
 		case <-refresh.C:
 			go this.refreshRoutingTable()
+		default:
 		}
 	}
 }
