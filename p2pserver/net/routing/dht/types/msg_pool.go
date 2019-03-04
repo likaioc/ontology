@@ -20,6 +20,7 @@ package types
 
 import (
 	"bytes"
+	"errors"
 	"sync"
 	"time"
 )
@@ -149,4 +150,21 @@ func (this *DHTMessagePool) SetResults(results []*Node) {
 // get results channel
 func (this *DHTMessagePool) GetResultChan() <-chan []*Node {
 	return this.resultChan
+}
+
+func (this *DHTMessagePool) UpdateReqStartTime(id NodeID, reqType DHTRequestType, sTime time.Time) {
+	requestId := ConstructRequestId(id, reqType)
+	req, ok := this.request[requestId]
+	if ok {
+		req.reqStartTime = sTime
+	}
+}
+
+func (this *DHTMessagePool) GetReqStartTime(requestId RequestId) (time.Time, error) {
+	req, ok := this.request[requestId]
+	if ok {
+		return req.reqStartTime, nil
+	}
+
+	return time.Now(), errors.New("can't get the responding reqContext")
 }

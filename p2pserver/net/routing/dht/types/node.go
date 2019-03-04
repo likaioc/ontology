@@ -41,7 +41,11 @@ func (n NodeID) Bytes() []byte {
 
 // NodeID prints as a long hexadecimal number.
 func (n NodeID) String() string {
-	return string(common.ConvertToP2PNodeID(common.RawP2PNodeID(n)))
+	return string(n.P2PNodeID())
+}
+
+func (n NodeID) P2PNodeID() common.P2PNodeID {
+	return common.ConvertToP2PNodeID(common.RawP2PNodeID(n))
 }
 
 var NilID = NodeID{}

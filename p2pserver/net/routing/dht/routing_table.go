@@ -21,9 +21,10 @@ package dht
 import (
 	"container/heap"
 	"sync"
+	"time"
 
-	"github.com/ontio/ontology/p2pserver/common"
 	ontNet "github.com/ontio/ontology/p2pserver/net"
+	"github.com/ontio/ontology/p2pserver/net/metric/latencymetric"
 	"github.com/ontio/ontology/p2pserver/net/routing/dht/types"
 )
 
@@ -36,10 +37,13 @@ type routingTable struct {
 	id      types.NodeID          // Local node id
 	buckets []*bucket             // Hold routing table
 	feedCh  chan *ontNet.FeedEvent // The channel between dht and netserver
+
+	latencyMetric latencymetric.LatencyMetric
+	maxTTLB       time.Duration               // The max TTLB(time to last byte )
 }
 
 // init initializes a routing table
-func (this *routingTable) init(id types.NodeID, ch chan *ontNet.FeedEvent) {
+func (this *routingTable) init(id types.NodeID, ch chan *ontNet.FeedEvent, maxTTLB time.Duration) {
 	this.buckets = make([]*bucket, types.BUCKET_NUM)
 	for i := range this.buckets {
 		this.buckets[i] = &bucket{
@@ -49,6 +53,9 @@ func (this *routingTable) init(id types.NodeID, ch chan *ontNet.FeedEvent) {
 
 	this.id = id
 	this.feedCh = ch
+
+	this.latencyMetric = latencymetric.NewLatencyMetricEWMA()
+	this.maxTTLB = maxTTLB
 }
 
 // locateBucket locates the bucket with a given id
@@ -78,8 +85,13 @@ func (this *routingTable) addNode(node *types.Node, bucketIndex int) bool {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 
+	nodeTTLB, err := this.latencyMetric.QueryLatency(node.ID.P2PNodeID())
+	if err == nil && nodeTTLB > this.maxTTLB{
+		return false
+	}
+
 	feedInfo := &ontNet.FeedInfo{
-		ID: common.ConvertToP2PNodeID(common.RawP2PNodeID(node.ID)),
+		ID: node.ID.P2PNodeID(),
 		IP: node.IP,
 		TCPPort: node.TCPPort,
 	}
@@ -138,7 +150,7 @@ func (this *routingTable) removeNode(id types.NodeID) {
 
 	if node != nil && this.feedCh != nil {
 		feedInfo := &ontNet.FeedInfo{
-			ID: common.ConvertToP2PNodeID(common.RawP2PNodeID(node.ID)),
+			ID: node.ID.P2PNodeID(),
 			IP: node.IP,
 			TCPPort: node.TCPPort,
 		}

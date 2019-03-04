@@ -100,7 +100,7 @@ func (this* dhtRouting) GetNbrPeers(peerId common.P2PNodeID)([]common.P2PNodeID,
 
 	nbrPeerIds := make([]common.P2PNodeID, 0)
 	for _, item := range closestList {
-		id := common.ConvertToP2PNodeID(common.RawP2PNodeID(item.Entry.ID))
+		id := item.Entry.ID.P2PNodeID()
 		nbrPeerIds = append(nbrPeerIds, id)
 	}
 

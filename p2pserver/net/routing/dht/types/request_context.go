@@ -28,6 +28,7 @@ type reqContext struct {
 	replaceNode     *Node
 	syncRequestLock *sync.WaitGroup
 	timeOutTimer    *time.Timer
+	reqStartTime    time.Time
 
 	timeoutListener chan RequestId
 }
@@ -35,8 +36,8 @@ type reqContext struct {
 func newReqContext(requestId RequestId, destNode, replaceNode *Node, syncLock *sync.WaitGroup,
 	timeoutListener chan RequestId, timeoutTime time.Duration) *reqContext {
 	ctx := &reqContext{
-		destNode:    destNode,
-		replaceNode: replaceNode,
+		destNode:     destNode,
+		replaceNode:  replaceNode,
 
 		timeoutListener: timeoutListener,
 	}

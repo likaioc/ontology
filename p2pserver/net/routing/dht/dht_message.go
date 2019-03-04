@@ -24,6 +24,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ontio/ontology/common/config"
 	"github.com/ontio/ontology/common/log"
@@ -68,6 +69,14 @@ func (this *DHT) neighborsHandle(from *net.UDPAddr, msg mt.Message) {
 		return
 	}
 
+	requestId := types.ConstructRequestId(neighbors.FromID, types.DHT_PING_REQUEST)
+	this.messagePool.GetRequestData(requestId)
+	sTimeReq, err := this.messagePool.GetReqStartTime(requestId)
+	if err == nil {
+		timeDelay := time.Since(sTimeReq)
+		this.routingTable.latencyMetric.StoreLatency(neighbors.FromID.P2PNodeID(), timeDelay)
+	}
+
 	isValidNodeId := common.VerifyRawP2PNodeID(common.RawP2PNodeID(neighbors.FromID), neighbors.FromIDDF)
 	if !isValidNodeId {
 		log.Warnf("[dht]neighborsHandle verify node id failed: from %v, fromID %v, fromIDDF %v",
@@ -79,7 +88,6 @@ func (this *DHT) neighborsHandle(from *net.UDPAddr, msg mt.Message) {
 		return
 	}
 
-	requestId := types.ConstructRequestId(neighbors.FromID, types.DHT_FIND_NODE_REQUEST)
 	this.messagePool.DeleteRequest(requestId)
 
 	waitGroup := new(sync.WaitGroup)
@@ -118,7 +126,10 @@ func (this *DHT) neighborsHandle(from *net.UDPAddr, msg mt.Message) {
 		}
 		_, isNewRequest := this.messagePool.AddRequest(node, types.DHT_PING_REQUEST, nil, waitGroup)
 		if isNewRequest {
-			this.ping(addr)
+			sentTime, err := this.ping(addr)
+			if err == nil {
+				this.messagePool.UpdateReqStartTime(node.ID, types.DHT_PING_REQUEST, sentTime)
+			}
 		}
 	}
 	waitGroup.Wait()
@@ -189,6 +200,15 @@ func (this *DHT) pongHandle(from *net.UDPAddr, msg mt.Message) {
 		log.Error("[dht]pong handle detected error message type!")
 		return
 	}
+
+	requestId := types.ConstructRequestId(pong.FromID, types.DHT_PING_REQUEST)
+	this.messagePool.GetRequestData(requestId)
+	sTimeReq, err := this.messagePool.GetReqStartTime(requestId)
+	if err == nil {
+		timeDelay := time.Since(sTimeReq)
+		this.routingTable.latencyMetric.StoreLatency(pong.FromID.P2PNodeID(), timeDelay)
+	}
+
 	if pong.Version != this.version {
 		log.Errorf("[dht]pongHandle: version is incompatible. local %d remote %d",
 			this.version, pong.Version)
@@ -202,7 +222,6 @@ func (this *DHT) pongHandle(from *net.UDPAddr, msg mt.Message) {
 		return
 	}
 
-	requestId := types.ConstructRequestId(pong.FromID, types.DHT_PING_REQUEST)
 	node, ok := this.messagePool.GetRequestData(requestId)
 	if !ok {
 		// request pool doesn't contain the node, ping timeout
@@ -235,15 +254,17 @@ func (this *DHT) updateNode(fromId types.NodeID) {
 }
 
 // findNode sends findNode to remote node to get the closest nodes to target
-func (this *DHT) findNode(remotePeer *types.Node, targetID types.NodeID) error {
+func (this *DHT) findNode(remotePeer *types.Node, targetID types.NodeID) (time.Time, error) {
 	addr, err := getNodeUDPAddr(remotePeer)
 	if err != nil {
-		return err
+		return time.Now(), err
 	}
 	findNodeMsg := msgpack.NewFindNode(this.nodeID, this.nodeIDDF, targetID)
+
+	curTime := time.Now()
 	this.send(addr, findNodeMsg)
 	log.Debugf("[dht]findNode to %s", addr.String())
-	return nil
+	return curTime, nil
 }
 
 // findNodeReply replies remote node when receiving find node
@@ -272,15 +293,17 @@ func (this *DHT) findNodeReply(addr *net.UDPAddr, targetId types.NodeID) error {
 }
 
 // ping the remote node
-func (this *DHT) ping(destAddr *net.UDPAddr) error {
+func (this *DHT) ping(destAddr *net.UDPAddr) (time.Time, error) {
 	pingMsg := msgpack.NewDHTPing(this.nodeID, this.nodeIDDF, this.udpPort,
 		this.tcpPort, this.conn.LocalAddr().(*net.UDPAddr), destAddr, this.version)
 	if pingMsg == nil {
-		return errors.New("[dht] faile to new dht ping")
+		return time.Now(), errors.New("[dht] faile to new dht ping")
 	}
+
+	curTime := time.Now()
 	this.send(destAddr, pingMsg)
 	log.Debugf("[dht]ping to %s", destAddr.String())
-	return nil
+	return curTime, nil
 }
 
 // pong reply remote node when receiving ping

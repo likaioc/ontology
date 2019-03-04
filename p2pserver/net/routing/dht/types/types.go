@@ -33,6 +33,7 @@ const (
 	PING_TIMEOUT      = 10 * time.Second // Ping timeout
 	FIND_NODE_TIMEOUT = 10 * time.Second // Find node timeout
 	DEFAULT_TIMEOUT   = 20 * time.Second // Default timeout
+	MAX_TTLB          = time.Minute      // Max TTLB
 	REFRESH_INTERVAL  = 1 * time.Hour    // Refresh interval
 )
 

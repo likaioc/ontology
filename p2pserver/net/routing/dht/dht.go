@@ -64,8 +64,7 @@ type DHT struct {
 	whiteList       []string
 	blackList       []string
 
-	disjointPathNum int                       // The disjoint path number for disjoint path query
-
+	disjointPathNum int                          // The disjoint path number for disjoint path query
 }
 
 // NewDHT returns an instance of DHT with the given id
@@ -137,7 +136,7 @@ func (this *DHT) init() {
 	this.stopCh = make(chan struct{})
 	this.messagePool = types.NewRequestPool(this.onRequestTimeOut)
 	this.feedCh = make(chan *ontNet.FeedEvent, types.MSG_CACHE)
-	this.routingTable.init(this.nodeID, this.feedCh)
+	this.routingTable.init(this.nodeID, this.feedCh, types.MAX_TTLB)
 
 	// load white list and black list
 	this.loadWhiteList()
@@ -208,7 +207,10 @@ func (this *DHT) syncAddNodes(nodes map[types.NodeID]*types.Node) {
 		_, isNewRequest := this.messagePool.AddRequest(node,
 			types.DHT_PING_REQUEST, nil, waitGroup)
 		if isNewRequest {
-			this.ping(addr)
+			sentTime, err := this.ping(addr)
+			if err == nil {
+				this.messagePool.UpdateReqStartTime(node.ID, types.DHT_PING_REQUEST, sentTime)
+			}
 		}
 	}
 	waitGroup.Wait()
@@ -262,8 +264,11 @@ func (this *DHT) querySingleDisjointPathSub(disjointPath []*types.Node, targetID
 		}
 		*sentQuery++
 		go func() {
-			this.findNode(node, targetID)
-			this.messagePool.AddRequest(node, types.DHT_FIND_NODE_REQUEST, nil, nil)
+			sentTime, err := this.findNode(node, targetID)
+			if err == nil {
+				this.messagePool.AddRequest(node, types.DHT_FIND_NODE_REQUEST, nil, nil)
+				this.messagePool.UpdateReqStartTime(node.ID, types.DHT_FIND_NODE_REQUEST, sentTime)
+			}
 		}()
 	}
 }
@@ -370,24 +375,6 @@ func (this *DHT) lookup(targetID types.NodeID) types.ClosestList {
 	return this.disjointParallelQuery(closestList, targetID)
 }
 
-// waitAndHandleResponse waits for the result
-func (this *DHT) waitAndHandleResponse(knownNode map[types.NodeID]bool, closestList types.ClosestList,
-	targetID types.NodeID) {
-	responseCh := this.messagePool.GetResultChan()
-	entries, ok := <-responseCh
-	if ok {
-		for _, n := range entries {
-			// Todo:
-			if knownNode[n.ID] == true || n.ID == this.nodeID {
-				continue
-			}
-			knownNode[n.ID] = true
-			push(n, targetID, closestList, types.BUCKET_SIZE)
-		}
-	}
-
-}
-
 // addNode adds a node to the K bucket.
 // remotePeer: added node
 // shouldWait: if ping the lastNode located in the same k bucket of remotePeer, the request should be wait or not
@@ -420,7 +407,10 @@ func (this *DHT) addNode(remotePeer *types.Node) {
 			}
 			if _, isNewRequest := this.messagePool.AddRequest(lastNode,
 				types.DHT_PING_REQUEST, remoteNode, nil); isNewRequest {
-				this.ping(addr)
+				sentTime, err := this.ping(addr)
+				if err == nil {
+					this.messagePool.UpdateReqStartTime(lastNode.ID, types.DHT_PING_REQUEST, sentTime)
+				}
 			}
 		}
 	}
@@ -546,7 +536,6 @@ func getNodeUDPAddr(node *types.Node) (*net.UDPAddr, error) {
 
 // Resolve searches for a specific node with the given ID.
 func (this *DHT) Resolve(id common.P2PNodeID) types.ClosestList {
-
 	nodeIDR, err := common.ConvertToRawP2PNodeID(id)
 	if err != nil {
 		log.Errorf("[p2p]%s", err.Error())
